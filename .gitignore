@@ -1,0 +1,30 @@
+# ─── Environment / Secrets ───────────────────────────────────
+monitor/.env
+upload-worker/.env
+dashboard/.env.local
+**/.env
+**/.env.local
+
+# ─── Node ────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+.npm
+
+# ─── Next.js ────────────────────────────────────────────────
+dashboard/.next/
+dashboard/out/
+
+# ─── Python ─────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# ─── MediaMTX recordings (don't commit video files) ─────────
+mediamtx/recordings/
+
+# ─── OS ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

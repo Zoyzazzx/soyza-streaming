@@ -1,0 +1,14 @@
+{
+  "name": "soyza-upload-worker",
+  "version": "1.0.0",
+  "description": "Watches the MediaMTX recordings folder and uploads completed .mp4 files to Supabase Storage",
+  "main": "worker.js",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "chokidar": "^3.6.0",
+    "dotenv": "^16.4.0"
+  }
+}

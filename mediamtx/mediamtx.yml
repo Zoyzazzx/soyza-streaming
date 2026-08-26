@@ -1,0 +1,61 @@
+###############################################################################
+# MediaMTX Configuration — Soyza Project
+# Secure Hybrid Network Real-Time Data Streaming and Storage System
+###############################################################################
+
+logLevel: info
+logDestinations: [stdout]
+
+###############################################################################
+# REST API — used by Next.js dashboard to query stream status
+###############################################################################
+api: yes
+apiAddress: :9997
+apiEncryption: no
+
+###############################################################################
+# RTMP — OBS pushes the camera feed here
+# OBS Settings: Server = rtmp://localhost:1935/live  |  Key = stream
+###############################################################################
+rtmp: yes
+rtmpAddress: :1935
+rtmpEncryption: no
+
+###############################################################################
+# HLS — browser-based playback
+# Playback URL: http://localhost:8888/live/stream/index.m3u8
+###############################################################################
+hls: yes
+hlsAddress: :8888
+hlsEncryption: no
+hlsAlwaysRemuxMuxer: yes
+hlsSegmentDuration: 2s       # 2s segments = ~6-8s total latency (good for demo)
+hlsSegmentMaxSize: 50MB
+hlsAllowOrigin: "*"          # Allow Next.js at localhost:3000 to embed the stream
+
+###############################################################################
+# Disable unused protocols (keeps things clean)
+###############################################################################
+rtsp: no
+rtsps: no
+rtmp2: no
+srt: no
+
+###############################################################################
+# WebRTC — used by the browser to broadcast the camera directly
+###############################################################################
+webrtc: yes
+webrtcAddress: :8889
+
+
+###############################################################################
+# Stream paths
+###############################################################################
+paths:
+  live:
+    # Recording — saves .mp4 files to ./recordings/ every 30 seconds
+    record: yes
+    recordPath: ./recordings/%Y-%m-%d_%H-%M-%S
+    recordFormat: mp4
+    recordSegmentDuration: 30s    # New file every 30 seconds
+    recordDeleteAfter: 0          # Keep files (0 = never auto-delete)

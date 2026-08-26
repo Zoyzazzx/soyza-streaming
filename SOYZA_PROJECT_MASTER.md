@@ -553,8 +553,9 @@ Statuses: `⬜ TODO` | `🔄 IN PROGRESS` | `✅ DONE` | `⚠️ BLOCKED`
 
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 5.1 | Run all 4 terminals simultaneously (see Section 9) | ⬜ TODO | |
-| 5.2 | Stream from OBS → verify HLS player shows video | ⬜ TODO | |
+| 5.1 | Run all 4 terminals simultaneously (or create single start script) | ⬜ TODO | |
+| 5.2 | Login to dashboard, open Broadcast Studio | ⬜ TODO | |
+| 5.3 | Start broadcast from browser, verify HLS viewer shows video | ⬜ TODO | |
 | 5.3 | Verify 30s segments appear in `recordings/` folder | ⬜ TODO | |
 | 5.4 | Verify upload worker sends to Supabase Storage | ⬜ TODO | |
 | 5.5 | Verify recordings appear in dashboard | ⬜ TODO | |
@@ -595,8 +596,8 @@ npm run dev
 ```
 
 **Then**:
-- Open OBS → Start Streaming (RTMP to `rtmp://localhost:1935/live`, key: `stream`)
 - Open browser: `http://localhost:3000`
+- Log in, go to Broadcast Studio, and start the camera.
 
 ---
 
@@ -606,8 +607,8 @@ npm run dev
 
 | Test ID | Test | Expected Result | Pass/Fail |
 |---|---|---|---|
-| T-01 | Start MediaMTX, check ports 1935/8888/9997 | Ports open, no errors | |
-| T-02 | Push stream from OBS | MediaMTX logs show connection | |
+| T-01 | Start MediaMTX, check ports 8889/8888/9997 | Ports open, no errors | |
+| T-02 | Broadcast from Browser Studio | MediaMTX logs show connection | |
 | T-03 | Open `http://localhost:8888/live/stream` in browser | Video plays | |
 | T-04 | Wait 30s, check `recordings/` folder | `.mp4` file appears | |
 | T-05 | Upload worker detects file, uploads | File in Supabase Storage | |
@@ -638,8 +639,7 @@ npm run dev
 2. **Supabase project pauses after 1 week of inactivity** — visit supabase.com before any demo session
 3. **Supabase Storage limit is 1GB** — delete old test recordings periodically
 4. **HLS has 5-10 second latency by design** — this is expected, not a bug
-5. **OBS must be set to auto-reconnect** — Settings → Stream → reconnect every 2s, so it recovers after failover
-6. **MediaMTX API is localhost-only** — the Next.js `/api/stream-status` route proxies it server-side
+5. **MediaMTX API is localhost-only** — the Next.js `/api/stream-status` route proxies it server-side
 
 ### Academic Scope Decisions
 - This is a **failover** system (link switching), NOT bonding — intentional per interim report scope

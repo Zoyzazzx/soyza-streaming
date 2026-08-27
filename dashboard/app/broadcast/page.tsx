@@ -53,28 +53,62 @@ export default function BroadcastStudio() {
       });
       pcRef.current = pc;
 
-      // Add tracks to PeerConnection
+      // ── Force H.264 video codec ───────────────────────────────────────────
+      // Chrome defaults to VP8 which MediaMTX packages into HLS fmp4, but
+      // browsers can't play VP8-in-HLS. Force H.264 so HLS output is playable.
       stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
+        const transceiver = pc.addTransceiver(track, { streams: [stream] });
+        if (track.kind === "video") {
+          const capabilities = RTCRtpSender.getCapabilities("video");
+          if (capabilities) {
+            const h264Codecs = capabilities.codecs.filter(
+              (c) => c.mimeType.toLowerCase() === "video/h264"
+            );
+            if (h264Codecs.length > 0) {
+              transceiver.setCodecPreferences(h264Codecs);
+            }
+          }
+        }
       });
+      // ─────────────────────────────────────────────────────────────────────
 
       // Create Offer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      // WHIP endpoint is usually POST /live/stream/whip on the webrtc port (8889)
+      // ── Wait for ICE gathering to complete ───────────────────────────────
+      // WHIP requires a fully-populated SDP (with ICE candidates) in one POST.
+      // Sending before gathering = 400 Bad Request from MediaMTX.
+      await new Promise<void>((resolve) => {
+        if (pc.iceGatheringState === "complete") {
+          resolve();
+        } else {
+          const check = () => {
+            if (pc.iceGatheringState === "complete") {
+              pc.removeEventListener("icegatheringstatechange", check);
+              resolve();
+            }
+          };
+          pc.addEventListener("icegatheringstatechange", check);
+          // Safety timeout — resolve after 4s even if not complete
+          setTimeout(resolve, 4000);
+        }
+      });
+      // ─────────────────────────────────────────────────────────────────────
+
       const whipUrl = "http://localhost:8889/live/stream/whip";
-      
+
       const response = await fetch(whipUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/sdp",
         },
-        body: offer.sdp,
+        body: pc.localDescription!.sdp, // Use updated SDP with ICE candidates
       });
 
       if (!response.ok) {
-        throw new Error(`WHIP server responded with ${response.status}`);
+        const body = await response.text();
+        throw new Error(`WHIP server responded with ${response.status}: ${body}`);
       }
 
       const answerSdp = await response.text();

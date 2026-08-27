@@ -1,6 +1,5 @@
 ###############################################################################
-# MediaMTX Configuration — Soyza Project
-# Secure Hybrid Network Real-Time Data Streaming and Storage System
+# MediaMTX v1.20.1 Configuration — Soyza Project
 ###############################################################################
 
 logLevel: info
@@ -11,15 +10,13 @@ logDestinations: [stdout]
 ###############################################################################
 api: yes
 apiAddress: :9997
-apiEncryption: no
 
 ###############################################################################
-# RTMP — OBS pushes the camera feed here
-# OBS Settings: Server = rtmp://localhost:1935/live  |  Key = stream
+# RTMP — OBS or other encoders can push here if needed
+# OBS Settings: Server = rtmp://localhost:1935/live  |  Stream Key = stream
 ###############################################################################
 rtmp: yes
 rtmpAddress: :1935
-rtmpEncryption: no
 
 ###############################################################################
 # HLS — browser-based playback
@@ -27,35 +24,29 @@ rtmpEncryption: no
 ###############################################################################
 hls: yes
 hlsAddress: :8888
-hlsEncryption: no
-hlsAlwaysRemuxMuxer: yes
-hlsSegmentDuration: 2s       # 2s segments = ~6-8s total latency (good for demo)
-hlsSegmentMaxSize: 50MB
-hlsAllowOrigin: "*"          # Allow Next.js at localhost:3000 to embed the stream
+hlsSegmentDuration: 2s
+hlsAllowOrigins: ["*"]
 
 ###############################################################################
-# Disable unused protocols (keeps things clean)
-###############################################################################
-rtsp: no
-rtsps: no
-rtmp2: no
-srt: no
-
-###############################################################################
-# WebRTC — used by the browser to broadcast the camera directly
+# WebRTC — browser broadcasts camera directly (WHIP protocol)
+# WHIP endpoint: http://localhost:8889/live/stream/whip
 ###############################################################################
 webrtc: yes
 webrtcAddress: :8889
 
+###############################################################################
+# Disable unused protocols
+###############################################################################
+rtsp: no
+srt: no
 
 ###############################################################################
 # Stream paths
 ###############################################################################
 paths:
-  live:
-    # Recording — saves .mp4 files to ./recordings/ every 30 seconds
+  "live/stream":
+    # Recordings — saves fmp4 files every 30 seconds
     record: yes
-    recordPath: ./recordings/%Y-%m-%d_%H-%M-%S
-    recordFormat: mp4
-    recordSegmentDuration: 30s    # New file every 30 seconds
-    recordDeleteAfter: 0          # Keep files (0 = never auto-delete)
+    recordPath: ./recordings/%path/%Y-%m-%d_%H-%M-%S
+    recordFormat: fmp4
+    recordSegmentDuration: 30s

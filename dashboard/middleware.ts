@@ -31,22 +31,22 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect all routes except /login
-  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
-    // Also allow the API route so it can still fetch stream status unauthenticated if needed
-    if (!request.nextUrl.pathname.startsWith('/api')) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      return NextResponse.redirect(url);
-    }
-  }
-
-  // If user is logged in and tries to go to login page, redirect to dashboard
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
-    return NextResponse.redirect(url);
-  }
+  // ── AUTH DISABLED FOR LOCAL TESTING ──────────────────────────────────────
+  // Uncomment the block below to re-enable login protection:
+  //
+  // if (!user && !request.nextUrl.pathname.startsWith('/login')) {
+  //   if (!request.nextUrl.pathname.startsWith('/api')) {
+  //     const url = request.nextUrl.clone();
+  //     url.pathname = '/login';
+  //     return NextResponse.redirect(url);
+  //   }
+  // }
+  // if (user && request.nextUrl.pathname.startsWith('/login')) {
+  //   const url = request.nextUrl.clone();
+  //   url.pathname = '/';
+  //   return NextResponse.redirect(url);
+  // }
+  // ─────────────────────────────────────────────────────────────────────────
 
   return supabaseResponse;
 }

@@ -2,7 +2,7 @@
 > **Project**: Secure Hybrid Network Real-Time Data Streaming and Storage System
 > **Student**: Prashan Zoysa | **ID**: E299625 | **Module**: C16600
 > **University**: Kingston University London
-> **Last Updated**: 2026-08-26
+> **Last Updated**: 2026-08-27
 
 ---
 
@@ -17,8 +17,9 @@
 7. [Environment Variables](#7-environment-variables)
 8. [Implementation Task Checklist](#8-implementation-task-checklist)
 9. [Running the Project](#9-running-the-project)
-10. [Testing & Validation Plan](#10-testing--validation-plan)
-11. [Known Constraints & Notes](#11-known-constraints--notes)
+10. [Deployment Guide](#10-deployment-guide)
+11. [Testing & Validation Plan](#11-testing--validation-plan)
+12. [Known Constraints & Notes](#12-known-constraints--notes)
 
 ---
 
@@ -29,10 +30,12 @@ Current live broadcasting systems (like those used in Sri Lanka's TV industry) o
 
 ### Aim
 Design and implement a simplified hybrid network system (simulating 5G + satellite) that:
-- Captures webcam video
-- Streams it live to a browser-based viewer
-- Automatically uploads recordings to cloud storage
+- Captures webcam video from a **field/remote location** (the broadcaster)
+- Streams it live to a **receiving end** (PCR/studio) — analogous to LiveU field unit → broadcast centre
+- Supports **public mode** (anyone can watch via a URL) and **private mode** (only authenticated receiver can view)
+- Automatically uploads recordings to cloud storage as a redundancy fallback
 - Monitors two network connections and switches between them when one degrades below a threshold
+- Is **accessible from two geographically separate locations** via cloud deployment
 
 ### Academic Objectives (from Interim Report)
 | # | Objective | Status |
@@ -47,63 +50,47 @@ Design and implement a simplified hybrid network system (simulating 5G + satelli
 
 ## 2. Final Architecture
 
-```
-+------------------------------------------------------------------+
-|                        YOUR PC (Local Machine)                   |
-|                                                                  |
-|   Camera (Browser WebRTC)                                        |
-|        |                                                         |
-|        |  WebRTC WHIP push (http://localhost:8889)               |
-|        v                                                         |
-|   +-------------+                                                |
-|   |  MediaMTX   |  <- Free open-source streaming server (.exe)  |
-|   |             |    Port 8889 (WebRTC in)                       |
-|   |             |    Port 8888 (HLS out)                         |
-|   |             |    Port 9997 (REST API)                        |
-|   +------+------+                                                |
-|          |                                                        |
-|    +-----+--------------------+                                  |
-|    |                          |                                  |
-|  HLS Stream           Recording files                            |
-|  (viewers watch)      saved to local folder                      |
-|                       ./recordings/                              |
-|                              |                                   |
-|                       Node.js Upload Worker                      |
-|                       (watches folder with chokidar)             |
-|                              |                                   |
-|   Python Monitor Script      |                                   |
-|   (pings 5G + 4G every 5s)   |                                   |
-|   -> adjusts Windows routing |                                   |
-|   -> logs events to Supabase |                                   |
-+------------------------------+-----------------------------------+
-                               | HTTPS
-                               v
-                    +---------------------+
-                    |      SUPABASE       |
-                    |  (Free Tier - Cloud)|
-                    |                     |
-                    |  Storage            |  <- video recordings
-                    |  PostgreSQL DB      |  <- metadata, events
-                    |  Auth               |  <- login for dashboard
-                    |  Realtime           |  <- live updates to UI
-                    +----------+----------+
-                               |
-                    +----------v----------+
-                    |   Next.js Dashboard |
-                    |   (React frontend)  |
-                    |                     |
-                    |  - Broadcaster Studio (WebRTC sender)
-                    |  - Live HLS player (viewer)
-                    |  - Network status   |
-                    |  - Failover log     |
-                    |  - Recordings list  |
-                    |  - Auth (login)     |
-                    +---------------------+
+### 2A. Two-Location Deployment Architecture (Production)
 
-Network Layer (Your PC)
-  5G Ethernet  -> Primary   (Windows routing metric: 10)
-  4G WiFi      -> Secondary (Windows routing metric: 50)
-  Python script watches both and adjusts metric dynamically
+```
+ LOCATION A — FIELD / BROADCASTER          CLOUD                    LOCATION B — PCR / RECEIVER
+ ─────────────────────────────────   ─────────────────────   ──────────────────────────────────
+
+  Browser (Broadcast Studio page)
+    Camera → WebRTC WHIP push
+         │                               MediaMTX (.exe)
+         └──────── HTTPS ──────────► Port 8889 (WebRTC in)
+                                         │
+  Python Monitor (runs as Admin)          │  Port 8888 (HLS out) ──────────► Browser Viewer
+    Pings 5G Ethernet + 4G WiFi           │                                    (HLS Player)
+    Switches Windows routing metric       │  Port 9997 (REST API)
+    Logs to Supabase                      │
+                                    Cloudflare Tunnel
+                                    (exposes MediaMTX                Next.js Dashboard
+  Upload Worker (Node.js)            ports to public HTTPS)  ◄───── (deployed on Vercel)
+    Watches recordings/ folder             │                          https://soyza-streaming.vercel.app
+    Uploads .mp4 → Supabase Storage        │
+         │                                 ▼
+         └──────── HTTPS ──────────► SUPABASE (Cloud)
+                                       Storage   ← video recordings
+                                       PostgreSQL ← metadata, events
+                                       Auth       ← login / private mode
+                                       Realtime   ← live updates to UI
+```
+
+### 2B. Public vs Private Stream Mode
+
+| Mode | Behaviour |
+|---|---|
+| **Public** | HLS player is visible to anyone with the Vercel URL — no login required |
+| **Private** | HLS player is gated behind Supabase Auth — only authenticated receiver can watch |
+
+### 2C. Network Failover Layer (Field Device Only)
+
+```
+  5G Ethernet  → Primary   (Windows routing metric: 10)
+  4G WiFi      → Secondary (Windows routing metric: 50)
+  Python script pings 8.8.8.8 every 5s, auto-switches metric on degradation
 ```
 
 ---
@@ -112,12 +99,13 @@ Network Layer (Your PC)
 
 | Layer | Technology | Version | Purpose | Cost |
 |---|---|---|---|---|
-| Streaming Server | **MediaMTX** | Latest (.exe) | RTMP ingest, HLS output, local recording | Free |
-| Frontend | **Next.js** | 15 (App Router) | Dashboard, HLS player, live status | Free |
+| Streaming Server | **MediaMTX** | Latest (.exe) | WebRTC ingest, HLS output, local recording | Free |
+| Frontend Hosting | **Vercel** | — | Deploy Next.js dashboard globally | Free |
+| Tunnel (MediaMTX) | **Cloudflare Tunnel** | cloudflared | Expose local MediaMTX ports via public HTTPS | Free |
+| Frontend | **Next.js** | 16 (App Router) | Dashboard, HLS player, Broadcast Studio, live status | Free |
 | Backend/DB | **Supabase** | Cloud Free Tier | PostgreSQL, Storage, Auth, Realtime | Free (500MB DB, 1GB Storage) |
-| Upload Worker | **Node.js** | 20+ LTS | Watch recordings folder, upload to Supabase | Free |
-| Failover Monitor | **Python** | 3.11+ | Ping both networks, switch Windows route | Free |
-| Streaming Input | **OBS Studio** | Latest | Push camera feed via RTMP to MediaMTX | Free |
+| Upload Worker | **Node.js** | 20 LTS | Watch recordings folder, upload to Supabase | Free |
+| Failover Monitor | **Python** | 3.14 | Ping both networks, switch Windows route | Free |
 
 ### Supabase Free Tier Limits (Important)
 - Storage: **1 GB** — keep recordings short (30s segments at 720p ~15MB each = ~66 recordings max)
@@ -487,10 +475,10 @@ Statuses: `⬜ TODO` | `🔄 IN PROGRESS` | `✅ DONE` | `⚠️ BLOCKED`
 
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 1.1 | Download MediaMTX binary, extract to `mediamtx/` | ⬜ TODO | github.com/bluenviron/mediamtx/releases |
-| 1.2 | Create `mediamtx/mediamtx.yml` | ✅ DONE | File written with WebRTC |
-| 1.3 | Run `./mediamtx.exe` and verify ports 8889/8888/9997 open | ⬜ TODO | Need to download binary first |
-| 1.4 | Create Supabase project `soyza-streaming` | ⬜ TODO | supabase.com |
+| 1.1 | Download MediaMTX binary, extract to `mediamtx/` | ✅ DONE | mediamtx.exe present in mediamtx/ |
+| 1.2 | Create `mediamtx/mediamtx.yml` | ✅ DONE | File written with WebRTC + HLS + RTMP |
+| 1.3 | Run `./mediamtx.exe` and verify ports 8889/8888/9997 open | ⬜ TODO | Run locally first |
+| 1.4 | Create Supabase project `soyza-streaming` | ✅ DONE | adcawizgdgqsoubblyeg.supabase.co |
 | 1.5 | Run full SQL schema in Supabase SQL Editor | ⬜ TODO | Section 6 |
 | 1.6 | Create Storage bucket `recordings` (public) | ⬜ TODO | Dashboard → Storage |
 | 1.7 | Enable Realtime on 3 tables | ⬜ TODO | Database → Replication |
@@ -502,14 +490,16 @@ Statuses: `⬜ TODO` | `🔄 IN PROGRESS` | `✅ DONE` | `⚠️ BLOCKED`
 | # | Task | Status | Notes |
 |---|---|---|---|
 | 2.1 | Create `monitor/` folder and files | ✅ DONE | monitor.py + requirements.txt + .env written |
-| 2.2 | Fill `monitor/.env` with real interface names + Supabase keys | ⬜ TODO | Run `Get-NetIPInterface` in PowerShell, then update .env |
+| 2.2 | Fill `monitor/.env` with real Supabase keys | ✅ DONE | Keys populated |
+| 2.2b | Verify interface names with `Get-NetIPInterface` | ⬜ TODO | Update PRIMARY_INTERFACE / BACKUP_INTERFACE in .env |
 | 2.3 | Write `monitor/monitor.py` — ping loop for both interfaces | ✅ DONE | Full script written |
 | 2.4 | Add failover switch logic (Set-NetIPInterface via subprocess) | ✅ DONE | Included in monitor.py |
 | 2.5 | Add Supabase insert for `network_readings` (every poll) | ✅ DONE | Included in monitor.py |
 | 2.6 | Add Supabase insert for `failover_events` (on switch) | ✅ DONE | Included in monitor.py |
-| 2.7 | Test: run monitor, verify rows appear in Supabase | ⬜ TODO | Do after Supabase is set up |
-| 2.8 | Test: unplug ethernet → verify failover triggers | ⬜ TODO | |
-| 2.9 | Test: replug ethernet → verify restore triggers | ⬜ TODO | |
+| 2.7 | Install Python packages | ✅ DONE | `py -m pip install -r requirements.txt` done |
+| 2.8 | Test: run monitor, verify rows appear in Supabase | ⬜ TODO | Do after SQL schema applied |
+| 2.9 | Test: unplug ethernet → verify failover triggers | ⬜ TODO | |
+| 2.10 | Test: replug ethernet → verify restore triggers | ⬜ TODO | |
 
 ---
 
@@ -519,12 +509,12 @@ Statuses: `⬜ TODO` | `🔄 IN PROGRESS` | `✅ DONE` | `⚠️ BLOCKED`
 |---|---|---|---|
 | 3.1 | Create `upload-worker/` folder | ✅ DONE | |
 | 3.2 | Create `package.json` and run `npm install` | ✅ DONE | 24 packages installed |
-| 3.3 | Fill `upload-worker/.env` with service_role key | ⬜ TODO | Need Supabase service_role key |
+| 3.3 | Fill `upload-worker/.env` with service_role key | ✅ DONE | Keys populated |
 | 3.4 | Write `worker.js` — chokidar watch on recordings folder | ✅ DONE | Full script written |
 | 3.5 | Add stable-file detection (size unchanged for 3s = file complete) | ✅ DONE | Included in worker.js |
 | 3.6 | Add Supabase Storage upload (`supabase.storage.from().upload()`) | ✅ DONE | Included in worker.js |
 | 3.7 | Add `recordings` table row insert after upload | ✅ DONE | Included in worker.js |
-| 3.8 | Test: start worker, start stream, wait 30s, verify upload | ⬜ TODO | Do after Supabase is set up |
+| 3.8 | Test: start worker, start stream, wait 30s, verify upload | ⬜ TODO | Do after Supabase schema applied |
 
 ---
 
@@ -533,95 +523,197 @@ Statuses: `⬜ TODO` | `🔄 IN PROGRESS` | `✅ DONE` | `⚠️ BLOCKED`
 | # | Task | Status | Notes |
 |---|---|---|---|
 | 4.1 | Initialize Next.js app in `dashboard/` | ✅ DONE | Next.js 16 + TypeScript + Tailwind |
-| 4.2 | Install `hls.js`, `@supabase/supabase-js`, `@supabase/ssr` | ✅ DONE | 11 packages added |
-| 4.3 | Create `.env.local` with Supabase anon key | ✅ DONE | Template created — needs real keys |
+| 4.2 | Install `hls.js`, `@supabase/supabase-js`, `@supabase/ssr` | ✅ DONE | 375 packages installed |
+| 4.3 | Create `.env.local` with Supabase anon key | ✅ DONE | Real keys populated |
 | 4.4 | Create `lib/supabase/client.ts` | ✅ DONE | |
 | 4.5 | Build `HLSPlayer.tsx` with hls.js | ✅ DONE | Auto-retry, LIVE badge, offline state |
 | 4.6 | Build `NetworkStatus.tsx` with Realtime subscription | ✅ DONE | Latency bars, health dots, active badge |
 | 4.7 | Build `FailoverLog.tsx` with Realtime subscription | ✅ DONE | Switch/restore events with details |
 | 4.8 | Build `RecordingsList.tsx` | ✅ DONE | Grid with inline playback |
 | 4.9 | Build `app/page.tsx` (main dashboard) | ✅ DONE | Full dark UI assembled |
-| 4.10 | Build `app/login/page.tsx` (Supabase Auth) | ⬜ TODO | Optional — can add after core works |
+| 4.10 | Build `app/login/page.tsx` (Supabase Auth) | ⬜ TODO | Required for private mode |
 | 4.11 | Build `app/recordings/page.tsx` | ✅ DONE | |
 | 4.12 | Build `app/api/stream-status/route.ts` (proxies MediaMTX API) | ✅ DONE | |
 | 4.13 | Design: dark theme, modern UI, animations | ✅ DONE | Dark glassmorphism, live badges |
 | 4.14 | TypeScript compile check | ✅ DONE | Zero errors — `tsc --noEmit` passed |
+| 4.15 | Wire public/private mode toggle (auth gate on HLS viewer) | ⬜ TODO | Supabase session check on viewer page |
 
 ---
 
-### Phase 5 — Integration & Demo
+### Phase 5 — Deployment
 
 | # | Task | Status | Notes |
 |---|---|---|---|
-| 5.1 | Run all 4 terminals simultaneously (or create single start script) | ⬜ TODO | |
-| 5.2 | Login to dashboard, open Broadcast Studio | ⬜ TODO | |
-| 5.3 | Start broadcast from browser, verify HLS viewer shows video | ⬜ TODO | |
-| 5.3 | Verify 30s segments appear in `recordings/` folder | ⬜ TODO | |
-| 5.4 | Verify upload worker sends to Supabase Storage | ⬜ TODO | |
-| 5.5 | Verify recordings appear in dashboard | ⬜ TODO | |
-| 5.6 | **Failover Demo**: unplug 5G ethernet → watch dashboard switch | ⬜ TODO | |
-| 5.7 | Verify FailoverLog updates in real-time | ⬜ TODO | |
-| 5.8 | Reconnect 5G → verify restore in FailoverLog | ⬜ TODO | |
-| 5.9 | Screen record full demo for submission | ⬜ TODO | |
-| 5.10 | Document results, latency metrics, screenshots for report | ⬜ TODO | |
+| 5.1 | Install Cloudflare Tunnel (`cloudflared`) on field machine | ⬜ TODO | See Section 10 |
+| 5.2 | Run `cloudflared tunnel` to expose ports 8889 + 8888 | ⬜ TODO | Gets public HTTPS URLs |
+| 5.3 | Push `dashboard/` to GitHub | ⬜ TODO | Required before Vercel import |
+| 5.4 | Import GitHub repo into Vercel, set env vars | ⬜ TODO | Add NEXT_PUBLIC_* vars in Vercel dashboard |
+| 5.5 | Update `NEXT_PUBLIC_HLS_URL` in Vercel to Cloudflare Tunnel URL | ⬜ TODO | Replace localhost with tunnel URL |
+| 5.6 | Update `NEXT_PUBLIC_MEDIAMTX_API` in Vercel to Cloudflare Tunnel URL | ⬜ TODO | |
+| 5.7 | Test: open Vercel URL from a different network → viewer loads | ⬜ TODO | |
+| 5.8 | Apply Supabase SQL schema (Section 6) | ⬜ TODO | Run in Supabase SQL Editor |
+| 5.9 | Create Storage bucket `recordings` (public) | ⬜ TODO | Supabase → Storage |
+| 5.10 | Enable Realtime on 3 tables | ⬜ TODO | Supabase → Database → Replication |
+
+---
+
+### Phase 6 — Integration & Demo
+
+| # | Task | Status | Notes |
+|---|---|---|---|
+| 6.1 | Run all local services (mediamtx, monitor, upload-worker) | ⬜ TODO | See Section 9 |
+| 6.2 | Open Vercel URL on receiver device (Location B) | ⬜ TODO | |
+| 6.3 | Open Broadcast Studio on broadcaster device (Location A) | ⬜ TODO | |
+| 6.4 | Start broadcast — verify HLS viewer on Location B shows video | ⬜ TODO | End-to-end test |
+| 6.5 | Verify 30s segments appear in `recordings/` folder | ⬜ TODO | |
+| 6.6 | Verify upload worker sends segments to Supabase Storage | ⬜ TODO | |
+| 6.7 | Verify recordings appear in dashboard Recordings page | ⬜ TODO | |
+| 6.8 | **Failover Demo**: unplug 5G ethernet → watch dashboard switch | ⬜ TODO | |
+| 6.9 | Verify FailoverLog updates in real-time on receiver screen | ⬜ TODO | |
+| 6.10 | Reconnect 5G → verify RESTORED_PRIMARY in FailoverLog | ⬜ TODO | |
+| 6.11 | Screen record full demo for submission | ⬜ TODO | |
+| 6.12 | Document results, latency metrics, screenshots for report | ⬜ TODO | |
 
 ---
 
 ## 9. Running the Project
 
-Open **4 separate PowerShell terminals**:
+### 9A. Local Development (single machine)
+
+Open **3 separate PowerShell terminals** on the field machine:
 
 **Terminal 1 — MediaMTX** (normal):
 ```powershell
-cd "f:\Data\Yvexa\Projects\Soyza Project\mediamtx"
+cd "d:\Navindra\soyza-streaming\mediamtx"
 .\mediamtx.exe
 ```
 
-**Terminal 2 — Python Monitor** (as **Administrator**):
+**Terminal 2 — Python Monitor** (**as Administrator**):
 ```powershell
-cd "f:\Data\Yvexa\Projects\Soyza Project\monitor"
-python monitor.py
+cd "d:\Navindra\soyza-streaming\monitor"
+py monitor.py
 ```
 
 **Terminal 3 — Upload Worker** (normal):
 ```powershell
-cd "f:\Data\Yvexa\Projects\Soyza Project\upload-worker"
+cd "d:\Navindra\soyza-streaming\upload-worker"
 node worker.js
 ```
 
-**Terminal 4 — Next.js Dashboard** (normal):
+**Terminal 4 — Dashboard** (local dev only — skip in production, use Vercel instead):
 ```powershell
-cd "f:\Data\Yvexa\Projects\Soyza Project\dashboard"
+cd "d:\Navindra\soyza-streaming\dashboard"
 npm run dev
 ```
 
-**Then**:
-- Open browser: `http://localhost:3000`
-- Log in, go to Broadcast Studio, and start the camera.
+Then open `http://localhost:3000` → Broadcast Studio → start camera.
+
+### 9B. Production — Two Locations
+
+**Field machine (Location A)** runs these 3 terminals:
+1. `mediamtx.exe` — streaming server
+2. `py monitor.py` (Admin) — failover monitor
+3. `node worker.js` — upload worker
+4. `cloudflared tunnel --url http://localhost:8888` — exposes HLS to internet
+
+Then open the **Vercel URL** on any device at Location B to view the stream.
 
 ---
 
-## 10. Testing & Validation Plan
+## 10. Deployment Guide
+
+### 10A. Cloudflare Tunnel (expose MediaMTX)
+
+> Cloudflare Tunnel creates a secure HTTPS reverse proxy from your local MediaMTX to a public URL — no port forwarding, no VPS needed.
+
+**Step 1 — Install cloudflared**:
+```powershell
+# Download from https://github.com/cloudflare/cloudflared/releases/latest
+# Get: cloudflared-windows-amd64.exe
+# Rename to cloudflared.exe and put it anywhere in PATH
+cloudflared --version
+```
+
+**Step 2 — Quick tunnel (no account needed for demo)**:
+```powershell
+# Expose HLS port (viewers watch from here)
+cloudflared tunnel --url http://localhost:8888
+# Output: https://xxxx-xxxx.trycloudflare.com  ← copy this URL
+
+# Expose WebRTC port (broadcaster pushes to here)
+cloudflared tunnel --url http://localhost:8889
+# Output: https://yyyy-yyyy.trycloudflare.com  ← copy this URL
+```
+
+**Step 3 — Update Vercel environment variables**:
+- `NEXT_PUBLIC_HLS_URL` = `https://xxxx-xxxx.trycloudflare.com/live/stream/index.m3u8`
+- `NEXT_PUBLIC_MEDIAMTX_API` = `https://xxxx-xxxx.trycloudflare.com` (use same HLS tunnel for API proxy)
+
+> **Note**: Quick tunnel URLs change every restart. For a stable URL, create a free Cloudflare account and use a named tunnel.
+
+---
+
+### 10B. Vercel Deployment (Next.js dashboard)
+
+**Step 1 — Push to GitHub**:
+```powershell
+cd d:\Navindra\soyza-streaming
+git add .
+git commit -m "feat: initial deployment"
+git push origin main
+```
+
+**Step 2 — Import on Vercel**:
+1. Go to https://vercel.com → New Project
+2. Import the `soyza-streaming` GitHub repo
+3. Set **Root Directory** to `dashboard`
+4. Add these **Environment Variables** in Vercel:
+
+| Variable | Value |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://adcawizgdgqsoubblyeg.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | *(your anon key)* |
+| `NEXT_PUBLIC_HLS_URL` | *(your Cloudflare Tunnel HLS URL)* |
+| `NEXT_PUBLIC_MEDIAMTX_API` | *(your Cloudflare Tunnel base URL)* |
+
+5. Click **Deploy** → get your `https://soyza-streaming.vercel.app` URL
+
+**Step 3 — Redeploy after getting tunnel URL**:
+Each time you restart the field machine and get new tunnel URLs, update them in Vercel → Settings → Environment Variables → Redeploy.
+
+---
+
+### 10C. Supabase One-Time Setup
+
+1. Go to https://supabase.com → Project `soyza-streaming`
+2. **SQL Editor** → paste and run the full schema from Section 6
+3. **Storage** → New bucket: `recordings` → toggle **Public**
+4. **Database → Replication** → enable Realtime for: `network_readings`, `failover_events`, `recordings`
+
+---
+
+## 11. Testing & Validation Plan
 
 ### Test Cases
 
 | Test ID | Test | Expected Result | Pass/Fail |
 |---|---|---|---|
 | T-01 | Start MediaMTX, check ports 8889/8888/9997 | Ports open, no errors | |
-| T-02 | Broadcast from Browser Studio | MediaMTX logs show connection | |
-| T-03 | Open `http://localhost:8888/live/stream` in browser | Video plays | |
-| T-04 | Wait 30s, check `recordings/` folder | `.mp4` file appears | |
-| T-05 | Upload worker detects file, uploads | File in Supabase Storage | |
-| T-06 | Check Supabase `recordings` table | Row inserted correctly | |
-| T-07 | Open dashboard `http://localhost:3000` | Dashboard loads with stream | |
-| T-08 | `NetworkStatus` shows latency for both interfaces | Updates every 5s | |
-| T-09 | **Failover**: unplug 5G ethernet cable | Monitor detects degradation | |
-| T-10 | After T-09: verify routing changed to WiFi | `tracert 8.8.8.8` goes via WiFi | |
-| T-11 | `FailoverLog` shows SWITCH_TO_BACKUP event | Real-time row appears | |
-| T-12 | Reconnect 5G ethernet | Monitor detects recovery | |
-| T-13 | `FailoverLog` shows RESTORED_PRIMARY event | Real-time row appears | |
-| T-14 | Login page works with Supabase Auth | Can log in and log out | |
-| T-15 | Recordings page shows all videos, playback works | Videos play in browser | |
+| T-02 | Broadcast from Broadcast Studio page | MediaMTX logs show WebRTC connection | |
+| T-03 | Open HLS URL in browser (local) | Video plays | |
+| T-04 | Open Vercel URL from a **different network/device** | Stream visible on remote device | |
+| T-05 | Wait 30s, check `recordings/` folder | `.mp4` file appears | |
+| T-06 | Upload worker detects file, uploads | File in Supabase Storage | |
+| T-07 | Check Supabase `recordings` table | Row inserted correctly | |
+| T-08 | Open Vercel dashboard from Location B | Dashboard loads with live stream | |
+| T-09 | `NetworkStatus` shows latency for both interfaces | Updates every 5s | |
+| T-10 | **Failover**: unplug 5G ethernet cable | Monitor detects degradation | |
+| T-11 | After T-10: verify routing changed to WiFi | `tracert 8.8.8.8` goes via WiFi | |
+| T-12 | `FailoverLog` shows SWITCH_TO_BACKUP event | Real-time row appears on Location B screen | |
+| T-13 | Reconnect 5G ethernet | Monitor detects recovery | |
+| T-14 | `FailoverLog` shows RESTORED_PRIMARY event | Real-time row appears | |
+| T-15 | Login page works with Supabase Auth | Can log in and log out | |
+| T-16 | Recordings page shows all videos, playback works | Videos play in browser | | |
 
 ### Performance Metrics to Capture (for Report)
 - Failover detection time: target < 30 seconds
@@ -632,14 +724,16 @@ npm run dev
 
 ---
 
-## 11. Known Constraints & Notes
+## 12. Known Constraints & Notes
 
 ### Important Warnings
 1. **Python monitor MUST run as Administrator** — `Set-NetIPInterface` requires elevated privileges
 2. **Supabase project pauses after 1 week of inactivity** — visit supabase.com before any demo session
 3. **Supabase Storage limit is 1GB** — delete old test recordings periodically
 4. **HLS has 5-10 second latency by design** — this is expected, not a bug
-5. **MediaMTX API is localhost-only** — the Next.js `/api/stream-status` route proxies it server-side
+5. **Cloudflare quick-tunnel URL changes on every restart** — update Vercel env vars and redeploy each time; use a named tunnel for a stable URL
+6. **MediaMTX WebRTC (port 8889) also needs a Cloudflare Tunnel** — the Broadcast Studio page must point to the tunnelled WebRTC URL when running in production
+7. **Node 20 engine warnings** — `@supabase/supabase-js` recommends Node ≥22; warnings are non-blocking, everything works on Node 20
 
 ### Academic Scope Decisions
 - This is a **failover** system (link switching), NOT bonding — intentional per interim report scope

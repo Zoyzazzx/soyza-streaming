@@ -69,16 +69,22 @@ export default function NetworkStatus() {
   const [activeLabels, setActiveLabels] = useState<string[]>([]);
   const supabase = createClient();
 
-  // Initial fetch for readings
+  // Initial fetch and polling for readings
   useEffect(() => {
-    supabase
-      .from("network_readings")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(10)
-      .then(({ data }) => {
-        if (data) setReadings(data);
-      });
+    const fetchReadings = () => {
+      supabase
+        .from("network_readings")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(10)
+        .then(({ data }) => {
+          if (data) setReadings(data);
+        });
+    };
+    
+    fetchReadings();
+    const interval = setInterval(fetchReadings, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch active config to filter out stale interfaces
@@ -96,22 +102,6 @@ export default function NetworkStatus() {
     fetchConfig();
     const interval = setInterval(fetchConfig, 5000);
     return () => clearInterval(interval);
-  }, []);
-
-  // Realtime subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel("network-readings-live")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "network_readings" },
-        (payload) => {
-          setReadings((prev) => [payload.new as NetworkReading, ...prev].slice(0, 20));
-        }
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const latest = getLatestPerInterface(readings).filter(r => 

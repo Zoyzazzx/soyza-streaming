@@ -130,7 +130,7 @@ def switch_route(target: str, metric: int, mode: str):
             subprocess.run(
                 ["powershell", "-Command",
                  f'Set-NetIPInterface -InterfaceAlias "{target}" '
-                 f'-InterfaceMetric {metric}'],
+                 f'-InterfaceMetric {metric} -ErrorAction SilentlyContinue'],
                 capture_output=True, text=True, timeout=10, check=True
             )
             print(f"[ROUTE] Set IF {target} metric → {metric}")

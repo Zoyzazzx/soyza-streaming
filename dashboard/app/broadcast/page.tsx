@@ -124,12 +124,24 @@ export default function BroadcastStudio() {
     }
   };
 
-  const stopBroadcast = () => {
+  const stopBroadcast = async () => {
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;
     }
     setIsBroadcasting(false);
+
+    try {
+      // Tell the upload worker to stitch the segments into a master recording
+      const response = await fetch("http://localhost:4000/api/stitch", { method: "POST" });
+      if (!response.ok) {
+        console.error("Failed to stitch recording");
+      } else {
+        console.log("Stitching triggered successfully!");
+      }
+    } catch (err) {
+      console.error("Could not reach worker to stitch recording:", err);
+    }
   };
 
   // Cleanup on unmount

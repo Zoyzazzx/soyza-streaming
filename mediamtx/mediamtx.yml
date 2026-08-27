@@ -25,6 +25,7 @@ rtmpAddress: :1935
 hls: yes
 hlsAddress: :8888
 hlsSegmentDuration: 2s
+hlsSegmentCount: 7200
 hlsAllowOrigins: ["*"]
 
 ###############################################################################

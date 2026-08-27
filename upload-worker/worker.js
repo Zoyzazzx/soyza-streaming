@@ -10,10 +10,13 @@
  */
 
 require("dotenv").config();
-const fs = require("fs");
-const path = require("path");
-const chokidar = require("chokidar");
+const fs          = require("fs");
+const path        = require("path");
+const chokidar    = require("chokidar");
 const { createClient } = require("@supabase/supabase-js");
+const express     = require("express");
+const cors        = require("cors");
+const { exec }    = require("child_process");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
@@ -31,6 +34,7 @@ const POLL_MS         = 1000;
 // ─────────────────────────────────────────────────────────────────────────────
 // Supabase client
 // ─────────────────────────────────────────────────────────────────────────────
+global.WebSocket = require('ws');
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Track files currently being processed so we don't double-upload
@@ -207,6 +211,65 @@ function start() {
     .on("error", (err) => log(`Watcher error: ${err}`));
 
   log("👀 Watching for new recordings...");
+
+  // Start Express API server
+  const app = express();
+  app.use(cors());
+  app.use(express.json());
+
+  app.post("/api/stitch", async (req, res) => {
+    log("🧵 Stitch command received. Checking for segments...");
+    try {
+      const targetDir = path.join(RECORDINGS_DIR, "live", "stream");
+      if (!fs.existsSync(targetDir)) {
+        log("   No live/stream directory found.");
+        return res.json({ success: true, message: "No segments found" });
+      }
+
+      const files = fs.readdirSync(targetDir)
+        .filter(f => f.endsWith(".mp4") && !f.startsWith("master_"))
+        .sort(); // Sorting ensures chronological order
+
+      if (files.length === 0) {
+        log("   No segments found to stitch.");
+        return res.json({ success: true, message: "No segments found" });
+      }
+
+      log(`   Found ${files.length} segments. Preparing FFmpeg concat list...`);
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const listPath = path.join(targetDir, `list_${timestamp}.txt`);
+      const listContent = files.map(f => `file '${f}'`).join("\n");
+      fs.writeFileSync(listPath, listContent);
+
+      const masterFile = `master_${timestamp}.mp4`;
+      const masterPath = path.join(targetDir, masterFile);
+
+      log(`   Running FFmpeg to create ${masterFile}...`);
+      
+      const ffmpegPath = "C:\\Users\\Navindra\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe";
+      exec(`"${ffmpegPath}" -f concat -safe 0 -i "${listPath}" -c copy "${masterPath}"`, async (error, stdout, stderr) => {
+        if (error) {
+          log(`❌ FFmpeg failed: ${error.message}`);
+          return;
+        }
+        log(`✅ Successfully stitched ${files.length} segments into ${masterFile}`);
+        fs.unlinkSync(listPath); // Cleanup list.txt
+
+        // The watcher will automatically detect and upload the master file!
+      });
+
+      res.json({ success: true, message: "Stitching started in background", masterFile });
+    } catch (err) {
+      log(`❌ Stitch API error: ${err.message}`);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  const PORT = 4000;
+  app.listen(PORT, () => {
+    log(`🚀 Worker API listening on port ${PORT}`);
+  });
 }
 
 start();

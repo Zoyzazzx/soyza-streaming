@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import HLSPlayer from "@/components/HLSPlayer";
 import { createClient } from "@/lib/supabase/client";
-import { LogOut, Home, Video } from "lucide-react";
+import { LogOut, Home, Video, Lock, Key, ChevronRight } from "lucide-react";
 
 interface StreamStatus {
   online: boolean;
@@ -16,8 +16,27 @@ export default function ViewerPage() {
   const HLS_URL = process.env.NEXT_PUBLIC_HLS_URL || "http://localhost:8888/live/stream/index.m3u8";
 
   const [streamStatus, setStreamStatus] = useState<StreamStatus>({ online: false, streaming: false });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [streamId, setStreamId] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  
   const router = useRouter();
   const supabase = createClient();
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/stream-auth");
+        const data = await res.json();
+        setIsAuthenticated(data.authenticated);
+      } catch {
+        setIsAuthenticated(false);
+      }
+    }
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     async function fetchStatus() {
@@ -38,6 +57,39 @@ export default function ViewerPage() {
     await supabase.auth.signOut();
     router.push("/login");
   };
+
+  const handleAuthenticate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAuthenticating(true);
+    setAuthError("");
+    
+    try {
+      const res = await fetch("/api/stream-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ streamId, password }),
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setIsAuthenticated(true);
+      } else {
+        setAuthError(data.error || "Invalid credentials.");
+      }
+    } catch (err) {
+      setAuthError("Failed to authenticate.");
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -108,7 +160,63 @@ export default function ViewerPage() {
           
           {/* Player */}
           <div className="flex-1 bg-black flex items-center justify-center relative min-h-[500px]">
-             {streamStatus.streaming ? (
+             {!isAuthenticated ? (
+               <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-20 px-4">
+                 <div className="max-w-md w-full bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-3xl shadow-2xl">
+                   <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center mb-6 mx-auto">
+                     <Lock className="w-8 h-8 text-white" />
+                   </div>
+                   <h3 className="text-white font-bold text-2xl text-center tracking-tight mb-2">Protected Stream</h3>
+                   <p className="text-white/60 text-sm text-center mb-8">Please enter the Stream ID and Password provided by the broadcaster to access this live feed.</p>
+                   
+                   <form onSubmit={handleAuthenticate} className="space-y-4">
+                     <div>
+                       <label className="text-xs font-bold text-white/70 uppercase tracking-wider ml-1">Stream ID</label>
+                       <div className="mt-1 relative">
+                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                           <Video className="h-4 w-4 text-white/40" />
+                         </div>
+                         <input
+                           type="text"
+                           value={streamId}
+                           onChange={(e) => setStreamId(e.target.value)}
+                           className="w-full bg-black/40 border border-white/20 text-white placeholder-white/30 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block pl-10 p-3 outline-none"
+                           placeholder="e.g. 123456"
+                           required
+                         />
+                       </div>
+                     </div>
+                     <div>
+                       <label className="text-xs font-bold text-white/70 uppercase tracking-wider ml-1">Password</label>
+                       <div className="mt-1 relative">
+                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                           <Key className="h-4 w-4 text-white/40" />
+                         </div>
+                         <input
+                           type="password"
+                           value={password}
+                           onChange={(e) => setPassword(e.target.value)}
+                           className="w-full bg-black/40 border border-white/20 text-white placeholder-white/30 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block pl-10 p-3 outline-none"
+                           placeholder="••••••••"
+                           required
+                         />
+                       </div>
+                     </div>
+                     
+                     {authError && <p className="text-red-400 text-xs font-medium text-center">{authError}</p>}
+                     
+                     <button
+                       type="submit"
+                       disabled={isAuthenticating}
+                       className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 mt-4 shadow-lg disabled:opacity-50"
+                     >
+                       {isAuthenticating ? "Verifying..." : "Unlock Stream"}
+                       {!isAuthenticating && <ChevronRight className="w-4 h-4" />}
+                     </button>
+                   </form>
+                 </div>
+               </div>
+             ) : streamStatus.streaming ? (
                 <HLSPlayer url={HLS_URL} />
              ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-10">

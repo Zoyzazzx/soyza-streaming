@@ -44,6 +44,8 @@ export default function BroadcastStudio() {
   const [configSaving, setConfigSaving] = useState(false);
   const [configMsg, setConfigMsg] = useState("");
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [streamId, setStreamId] = useState("");
+  const [streamPassword, setStreamPassword] = useState("");
 
   const router = useRouter();
   const supabase = createClient();
@@ -121,6 +123,22 @@ export default function BroadcastStudio() {
       return;
     }
     setError(null);
+
+    const newStreamId = Math.floor(100000 + Math.random() * 900000).toString();
+    const newPassword = Math.random().toString(36).slice(-8);
+
+    try {
+      await fetch("/api/stream-auth", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ streamId: newStreamId, password: newPassword })
+      });
+      setStreamId(newStreamId);
+      setStreamPassword(newPassword);
+    } catch (err) {
+      console.error("Failed to set credentials", err);
+    }
+
     try {
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -337,6 +355,13 @@ export default function BroadcastStudio() {
                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                    <span className="text-red-700 text-[10px] font-bold tracking-widest uppercase">Live Broadcast</span>
                    <span className="text-red-700 font-mono text-xs font-bold border-l border-red-200 pl-2 ml-1">{formatDuration(broadcastDuration)}</span>
+                   {streamId && (
+                     <div className="ml-2 flex items-center gap-2 text-xs font-mono bg-white border border-red-100 px-2 py-0.5 rounded shadow-sm">
+                       <span className="text-red-500 font-semibold">ID:</span> <span className="font-bold text-red-900">{streamId}</span>
+                       <span className="text-red-200">|</span>
+                       <span className="text-red-500 font-semibold">PWD:</span> <span className="font-bold text-red-900">{streamPassword}</span>
+                     </div>
+                   )}
                  </div>
                )}
              </div>

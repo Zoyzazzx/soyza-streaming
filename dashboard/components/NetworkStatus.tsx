@@ -26,7 +26,7 @@ function StatusDot({ healthy }: { healthy: boolean }) {
   return (
     <span
       className={`inline-block w-2.5 h-2.5 rounded-full ${
-        healthy ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"
+        healthy ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
       }`}
     />
   );
@@ -36,30 +36,30 @@ function LatencyBar({ latencyMs, threshold = 150 }: { latencyMs: number | null; 
   if (latencyMs === null) {
     return (
       <div className="flex items-center gap-2">
-        <div className="flex-1 h-1.5 rounded-full bg-white/10">
-          <div className="h-full w-full rounded-full bg-red-500/60" />
+        <div className="flex-1 h-1.5 rounded-full bg-gray-200">
+          <div className="h-full w-full rounded-full bg-red-500" />
         </div>
-        <span className="text-xs text-red-400 w-20 text-right">UNREACHABLE</span>
+        <span className="text-xs font-semibold text-red-600 w-20 text-right">UNREACHABLE</span>
       </div>
     );
   }
 
   const pct = Math.min((latencyMs / (threshold * 2)) * 100, 100);
   const color = latencyMs < threshold * 0.5
-    ? "bg-emerald-400"
+    ? "bg-emerald-500"
     : latencyMs < threshold
-    ? "bg-yellow-400"
+    ? "bg-yellow-500"
     : "bg-red-500";
 
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+      <div className="flex-1 h-1.5 rounded-full bg-gray-200 overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-700 ${color}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-xs text-white/60 w-16 text-right tabular-nums">{latencyMs.toFixed(0)} ms</span>
+      <span className="text-xs font-medium text-gray-600 w-16 text-right tabular-nums">{latencyMs.toFixed(0)} ms</span>
     </div>
   );
 }
@@ -99,10 +99,10 @@ export default function NetworkStatus() {
   const latest = getLatestPerInterface(readings);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 space-y-4">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-white/80 uppercase tracking-wider">Network Status</h2>
-        <span className="text-xs text-white/30 tabular-nums">
+        <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Network Status</h2>
+        <span className="text-xs font-medium text-gray-400 tabular-nums">
           {readings[0]
             ? new Date(readings[0].created_at).toLocaleTimeString()
             : "—"}
@@ -110,8 +110,8 @@ export default function NetworkStatus() {
       </div>
 
       {latest.length === 0 ? (
-        <div className="flex items-center gap-2 text-white/30 text-sm py-4 justify-center">
-          <div className="w-4 h-4 border border-white/20 border-t-transparent rounded-full animate-spin" />
+        <div className="flex items-center gap-2 text-gray-400 font-medium text-sm py-4 justify-center">
+          <div className="w-4 h-4 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />
           Waiting for monitor...
         </div>
       ) : (
@@ -119,32 +119,32 @@ export default function NetworkStatus() {
           {latest.map((r) => (
             <div key={r.interface} className={`rounded-xl p-4 border transition-all ${
               r.is_active
-                ? "border-indigo-500/40 bg-indigo-500/5"
-                : "border-white/5 bg-white/3"
+                ? "border-indigo-200 bg-indigo-50/50 shadow-sm"
+                : "border-gray-100 bg-gray-50"
             }`}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <StatusDot healthy={r.is_healthy} />
-                  <span className="text-sm font-medium text-white">{r.interface}</span>
+                  <span className="text-sm font-bold text-gray-900">{r.interface}</span>
                   {r.is_active && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
                       ACTIVE
                     </span>
                   )}
                 </div>
-                <span className={`text-xs font-medium ${r.is_healthy ? "text-emerald-400" : "text-red-400"}`}>
+                <span className={`text-xs font-bold ${r.is_healthy ? "text-emerald-600" : "text-red-600"}`}>
                   {r.is_healthy ? "Healthy" : "Degraded"}
                 </span>
               </div>
 
               <div className="space-y-2">
                 <div>
-                  <p className="text-xs text-white/40 mb-1">Latency</p>
+                  <p className="text-xs font-semibold text-gray-500 mb-1">Latency</p>
                   <LatencyBar latencyMs={r.latency_ms} />
                 </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-white/40">Packet Loss</span>
-                  <span className={r.packet_loss > 20 ? "text-red-400" : "text-white/60"}>
+                <div className="flex justify-between text-xs font-medium mt-1">
+                  <span className="text-gray-500">Packet Loss</span>
+                  <span className={r.packet_loss > 20 ? "text-red-600 font-bold" : "text-gray-700"}>
                     {r.packet_loss.toFixed(0)}%
                   </span>
                 </div>

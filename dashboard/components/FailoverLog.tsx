@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface FailoverEvent {
   id: number;
@@ -17,12 +18,13 @@ interface FailoverEvent {
 function EventBadge({ type }: { type: FailoverEvent["event_type"] }) {
   const isSwitch = type === "SWITCH_TO_BACKUP";
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+    <span className={`text-[11px] px-2.5 py-1 rounded-full border font-bold flex items-center gap-1 uppercase tracking-wider ${
       isSwitch
-        ? "bg-orange-500/15 text-orange-300 border-orange-500/30"
-        : "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+        ? "bg-orange-100 text-orange-700 border-orange-200"
+        : "bg-emerald-100 text-emerald-700 border-emerald-200"
     }`}>
-      {isSwitch ? "⚠ Failover" : "✓ Restored"}
+      {isSwitch ? <AlertCircle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+      {isSwitch ? "Failover" : "Restored"}
     </span>
   );
 }
@@ -60,52 +62,55 @@ export default function FailoverLog() {
   }, []);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 space-y-4">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-white/80 uppercase tracking-wider">Failover Log</h2>
-        <span className="text-xs text-white/30">{events.length} events</span>
+        <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wider">Failover Log</h2>
+        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+          {events.length} events
+        </span>
       </div>
 
       {events.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 gap-2">
-          <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+        <div className="flex flex-col items-center justify-center py-8 gap-3 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
           </div>
-          <p className="text-white/30 text-sm">No failover events yet</p>
-          <p className="text-white/20 text-xs">All networks nominal</p>
+          <div className="text-center">
+            <p className="text-gray-800 font-bold text-sm">No failover events yet</p>
+            <p className="text-gray-500 text-xs mt-0.5">All networks operating nominally</p>
+          </div>
         </div>
       ) : (
-        <div className="space-y-2 max-h-80 overflow-y-auto pr-1 scrollbar-thin">
+        <div className="space-y-3 max-h-80 overflow-y-auto pr-2 scrollbar-thin">
           {events.map((event) => (
             <div
               key={event.id}
-              className={`rounded-xl p-3 border transition-all ${
+              className={`rounded-xl p-4 border transition-all ${
                 event.event_type === "SWITCH_TO_BACKUP"
-                  ? "border-orange-500/20 bg-orange-500/5"
-                  : "border-emerald-500/20 bg-emerald-500/5"
+                  ? "border-orange-200 bg-orange-50/50"
+                  : "border-emerald-200 bg-emerald-50/50"
               }`}
             >
-              <div className="flex items-start justify-between gap-2 mb-1.5">
+              <div className="flex items-center justify-between gap-2 mb-2.5">
                 <EventBadge type={event.event_type} />
-                <span className="text-xs text-white/30 tabular-nums shrink-0">
+                <span className="text-xs font-semibold text-gray-400 tabular-nums shrink-0 bg-white px-2 py-1 rounded-md shadow-sm border border-gray-100">
                   {new Date(event.created_at).toLocaleTimeString()}
                 </span>
               </div>
-              <p className="text-xs text-white/70">
-                <span className="text-white/50">{event.from_interface}</span>
-                <span className="text-white/30 mx-1.5">→</span>
-                <span className="text-white/80 font-medium">{event.to_interface}</span>
+              <p className="text-sm text-gray-600 font-medium flex items-center gap-2">
+                <span className="text-gray-500 line-through decoration-gray-400">{event.from_interface}</span>
+                <span className="text-gray-400 font-bold">→</span>
+                <span className="text-gray-900 font-bold">{event.to_interface}</span>
               </p>
               {event.reason && (
-                <p className="text-xs text-white/40 mt-1 leading-relaxed">{event.reason}</p>
+                <p className="text-xs text-gray-500 mt-2 leading-relaxed bg-white/60 p-2 rounded-lg border border-gray-100 italic">
+                  {event.reason}
+                </p>
               )}
               {event.latency_at_switch !== null && (
-                <div className="flex gap-3 mt-1.5 text-xs text-white/30">
-                  <span>Latency: {event.latency_at_switch?.toFixed(0)}ms</span>
-                  <span>Loss: {event.packet_loss_at_switch?.toFixed(0)}%</span>
+                <div className="flex gap-3 mt-2.5 text-xs font-semibold text-gray-500">
+                  <span className="bg-white px-2 py-1 rounded border border-gray-100">Latency: <span className="text-red-600">{event.latency_at_switch?.toFixed(0)}ms</span></span>
+                  <span className="bg-white px-2 py-1 rounded border border-gray-100">Loss: <span className="text-red-600">{event.packet_loss_at_switch?.toFixed(0)}%</span></span>
                 </div>
               )}
             </div>

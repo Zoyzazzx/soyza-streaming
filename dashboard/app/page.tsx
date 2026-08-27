@@ -1,187 +1,98 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import HLSPlayer from "@/components/HLSPlayer";
-import NetworkStatus from "@/components/NetworkStatus";
-import FailoverLog from "@/components/FailoverLog";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { MonitorPlay, Radio, Settings, LogOut } from "lucide-react";
 
-interface StreamStatus {
-  online: boolean;
-  streaming: boolean;
-}
+export default function HubPage() {
+  const router = useRouter();
+  const supabase = createClient();
 
-export default function DashboardPage() {
-  const HLS_URL = process.env.NEXT_PUBLIC_HLS_URL || "http://localhost:8888/live/stream/index.m3u8";
-
-  const [streamStatus, setStreamStatus] = useState<StreamStatus>({ online: false, streaming: false });
-  const [currentTime, setCurrentTime] = useState("");
-
-  // Poll MediaMTX status every 5 seconds
-  useEffect(() => {
-    async function fetchStatus() {
-      try {
-        const res = await fetch("/api/stream-status");
-        const data = await res.json();
-        setStreamStatus(data);
-      } catch {
-        setStreamStatus({ online: false, streaming: false });
-      }
-    }
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Clock
-  useEffect(() => {
-    function tick() {
-      setCurrentTime(new Date().toLocaleTimeString("en-GB", { hour12: false }));
-    }
-    tick();
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
-  }, []);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
 
   return (
-    <div className="min-h-screen bg-[#080b14]">
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       {/* ── Navigation ── */}
-      <nav className="border-b border-white/8 bg-[#080b14]/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
-          {/* Logo */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-            <span className="font-semibold text-white text-sm">SoyzaStream</span>
-            <span className="hidden sm:block text-white/20 text-xs ml-1">Hybrid Network Dashboard</span>
-          </div>
-
-          {/* Nav links */}
-          <div className="flex items-center gap-1">
-            <Link href="/" className="px-3 py-1.5 text-xs font-medium text-white bg-white/10 rounded-lg">
-              Viewer
-            </Link>
-            <Link href="/broadcast" className="px-3 py-1.5 text-xs font-medium text-white/50 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
-              Broadcast Studio
-            </Link>
-            <Link href="/recordings" className="px-3 py-1.5 text-xs font-medium text-white/50 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
-              Recordings
-            </Link>
-          </div>
-
-          {/* Status pill & Logout */}
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm animate-in fade-in slide-in-from-top-4 duration-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <span className="text-white/30 text-xs font-mono hidden sm:block">{currentTime}</span>
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-all ${
-              streamStatus.streaming
-                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-                : streamStatus.online
-                ? "bg-yellow-500/15 border-yellow-500/30 text-yellow-300"
-                : "bg-white/5 border-white/10 text-white/40"
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${
-                streamStatus.streaming ? "bg-emerald-400 animate-pulse" :
-                streamStatus.online ? "bg-yellow-400" : "bg-white/30"
-              }`} />
-              {streamStatus.streaming ? "Live" : streamStatus.online ? "Idle" : "Offline"}
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center shadow-md">
+              <span className="text-white font-bold text-lg leading-none">Z</span>
             </div>
+            <div>
+              <span className="font-bold text-gray-900 text-lg tracking-tight block">ZoyzaXR</span>
+              <span className="text-gray-500 text-xs">Command Hub</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
             <button
-              onClick={async () => {
-                const { createClient } = await import("@/lib/supabase/client");
-                const supabase = createClient();
-                await supabase.auth.signOut();
-                window.location.href = "/login";
-              }}
-              className="px-2 py-1 text-xs text-white/50 hover:text-red-400 transition-colors border-l border-white/10 pl-3"
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             >
-              Logout
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
       </nav>
 
       {/* ── Main content ── */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-
-        {/* Header */}
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-white">Live Dashboard</h1>
-          <p className="text-sm text-white/40">
-            Hybrid 5G + 4G network streaming system with automatic failover
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-12 flex flex-col items-center justify-center">
+        
+        <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
+          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Welcome to ZoyzaXR</h1>
+          <p className="text-gray-500 mt-3 text-lg max-w-2xl mx-auto">
+            Select an action to continue. Your hybrid network streaming environment is ready.
           </p>
         </div>
 
-        {/* ── Stats row ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            {
-              label: "MediaMTX",
-              value: streamStatus.online ? "Online" : "Offline",
-              color: streamStatus.online ? "text-emerald-400" : "text-red-400",
-              icon: "🖥",
-            },
-            {
-              label: "Stream",
-              value: streamStatus.streaming ? "Active" : "Waiting",
-              color: streamStatus.streaming ? "text-emerald-400" : "text-white/40",
-              icon: "📡",
-            },
-            {
-              label: "Segment Length",
-              value: "30s",
-              color: "text-indigo-300",
-              icon: "🎬",
-            },
-            {
-              label: "Protocol",
-              value: "HLS",
-              color: "text-violet-300",
-              icon: "⚡",
-            },
-          ].map((stat) => (
-            <div key={stat.label} className="rounded-xl border border-white/8 bg-white/4 p-4">
-              <div className="text-lg mb-1">{stat.icon}</div>
-              <p className={`text-sm font-semibold ${stat.color}`}>{stat.value}</p>
-              <p className="text-xs text-white/30 mt-0.5">{stat.label}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
+          {/* Card 1: View Stream */}
+          <Link href="/viewer" className="group relative bg-white border border-gray-200 rounded-3xl p-8 shadow-sm hover:shadow-xl hover:border-indigo-200 transition-all duration-300 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200 flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 shadow-sm">
+              <MonitorPlay className="w-8 h-8" />
             </div>
-          ))}
+            <h2 className="text-xl font-bold text-gray-900 mb-2">View Stream</h2>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Watch the live broadcast, check stream status, and browse past recordings.
+            </p>
+          </Link>
+
+          {/* Card 2: Start Stream */}
+          <Link href="/broadcast" className="group relative bg-white border border-gray-200 rounded-3xl p-8 shadow-sm hover:shadow-xl hover:border-blue-200 transition-all duration-300 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300 flex flex-col items-center text-center">
+            <div className="absolute top-4 right-4 bg-red-100 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1.5 uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
+              Live
+            </div>
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shadow-sm">
+              <Radio className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Start Stream</h2>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Launch the Broadcast Studio, manage network failover, and start streaming.
+            </p>
+          </Link>
+
+          {/* Card 3: Settings */}
+          <Link href="/settings" className="group relative bg-white border border-gray-200 rounded-3xl p-8 shadow-sm hover:shadow-xl hover:border-gray-300 transition-all duration-300 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-500 flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-2xl bg-gray-50 text-gray-600 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-gray-800 group-hover:text-white transition-all duration-300 shadow-sm">
+              <Settings className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Settings</h2>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Configure application preferences, account details, and advanced options.
+            </p>
+          </Link>
         </div>
 
-        {/* ── Stream + side panel ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Player — 2/3 width */}
-          <div className="lg:col-span-2 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Live Stream</h2>
-              <a
-                href={HLS_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-white/30 hover:text-indigo-400 transition-colors"
-              >
-                Open HLS ↗
-              </a>
-            </div>
-            <HLSPlayer url={HLS_URL} />
-            <p className="text-xs text-white/25 font-mono">{HLS_URL}</p>
-          </div>
-
-          {/* Side panel — 1/3 width */}
-          <div className="space-y-4">
-            <NetworkStatus />
-          </div>
-        </div>
-
-        {/* ── Failover log ── */}
-        <FailoverLog />
-
-        {/* ── Footer ── */}
-        <div className="border-t border-white/5 pt-4 flex items-center justify-between text-xs text-white/20">
-          <span>Soyza Project — E299625 | Kingston University London</span>
-          <span>C16600 Individual Project</span>
+        {/* Footer */}
+        <div className="mt-16 text-center text-xs text-gray-400 animate-in fade-in duration-1000 delay-700">
+          ZoyzaXR Project — E299625 | Kingston University London
         </div>
       </main>
     </div>

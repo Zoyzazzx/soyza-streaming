@@ -3,7 +3,7 @@ import RecordingsList from "@/components/RecordingsList";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Recordings — Soyza Stream",
+  title: "Recordings — ZoyzaXR",
   description: "Browse and play all cloud-uploaded stream recordings.",
 };
 
@@ -19,7 +19,7 @@ export default function RecordingsPage() {
                 <path d="M8 5v14l11-7z" />
               </svg>
             </div>
-            <span className="font-semibold text-white text-sm">SoyzaStream</span>
+            <span className="font-semibold text-white text-sm">ZoyzaXR</span>
           </div>
           <div className="flex items-center gap-1">
             <Link href="/" className="px-3 py-1.5 text-xs font-medium text-white/50 hover:text-white hover:bg-white/5 rounded-lg transition-colors">

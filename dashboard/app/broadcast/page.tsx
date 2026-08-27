@@ -8,6 +8,17 @@ import { LogOut, Home, Settings, Radio, Video, Mic, Monitor, Network, Save } fro
 import NetworkStatus from "@/components/NetworkStatus";
 import FailoverLog from "@/components/FailoverLog";
 
+interface Adapter {
+  Name: string;
+  Status: string;
+  InterfaceDescription: string;
+}
+
+interface Gateway {
+  NextHop: string;
+  InterfaceAlias: string;
+}
+
 export default function BroadcastStudio() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -23,8 +34,11 @@ export default function BroadcastStudio() {
   const [resolution, setResolution] = useState("720p");
 
   // Network Config
-  const [primaryNetwork, setPrimaryNetwork] = useState("Ethernet");
-  const [backupNetwork, setBackupNetwork] = useState("Wi-Fi");
+  const [mode, setMode] = useState<"interface" | "gateway">("interface");
+  const [primaryNetwork, setPrimaryNetwork] = useState("");
+  const [backupNetwork, setBackupNetwork] = useState("");
+  const [adapters, setAdapters] = useState<Adapter[]>([]);
+  const [gateways, setGateways] = useState<Gateway[]>([]);
   const [configSaving, setConfigSaving] = useState(false);
   const [configMsg, setConfigMsg] = useState("");
 
@@ -49,10 +63,13 @@ export default function BroadcastStudio() {
     }
     getDevices();
 
-    // Fetch initial network config
+    // Fetch initial network config & hardware info
     fetch("/api/settings").then(res => res.json()).then(data => {
+       if (data.mode) setMode(data.mode);
        if (data.primary) setPrimaryNetwork(data.primary);
        if (data.backup) setBackupNetwork(data.backup);
+       if (data.adapters) setAdapters(data.adapters);
+       if (data.gateways) setGateways(data.gateways);
     }).catch(() => {});
   }, []);
 
@@ -187,7 +204,7 @@ export default function BroadcastStudio() {
        const res = await fetch("/api/settings", {
          method: "POST",
          headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({ primary: primaryNetwork, backup: backupNetwork })
+         body: JSON.stringify({ mode, primary: primaryNetwork, backup: backupNetwork })
        });
        if(res.ok) {
          setConfigMsg("Saved! Restart monitor script.");
@@ -206,7 +223,7 @@ export default function BroadcastStudio() {
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       {/* ── Navigation ── */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
+        <div className="w-full mx-auto px-4 sm:px-8 2xl:px-12 flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 transition-colors shadow-md group">
               <Home className="w-5 h-5 text-white group-hover:scale-110 transition-transform" />
@@ -230,10 +247,10 @@ export default function BroadcastStudio() {
       </nav>
 
       {/* ── Main content ── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <main className="flex-1 w-full mx-auto px-4 sm:px-8 2xl:px-12 py-8 grid grid-cols-1 xl:grid-cols-4 gap-8">
         
         {/* Left Column: Video & Controls */}
-        <div className="lg:col-span-2 space-y-6 flex flex-col h-full">
+        <div className="xl:col-span-3 space-y-6 flex flex-col h-full">
            <div className="bg-white border border-gray-200 rounded-3xl shadow-xl overflow-hidden flex flex-col flex-1 animate-in fade-in slide-in-from-bottom-8 duration-700">
              
              {/* Header */}
@@ -361,24 +378,63 @@ export default function BroadcastStudio() {
              
              <div className="space-y-4 pt-1">
                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-500">Primary Network / Gateway</label>
-                  <input 
-                    type="text" 
-                    value={primaryNetwork} 
-                    onChange={(e) => setPrimaryNetwork(e.target.value)}
-                    placeholder="e.g. Ethernet, 10.10.10.252"
+                  <label className="text-xs font-bold text-gray-500">Failover Mode</label>
+                  <select 
+                    value={mode} 
+                    onChange={(e) => {
+                      setMode(e.target.value as "interface" | "gateway");
+                      setPrimaryNetwork("");
+                      setBackupNetwork("");
+                    }}
                     className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5"
-                  />
+                  >
+                    <option value="interface">By Network Adapter</option>
+                    <option value="gateway">By Gateway IP</option>
+                  </select>
                </div>
                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-500">Backup Network / Gateway</label>
-                  <input 
-                    type="text" 
+                  <label className="text-xs font-bold text-gray-500">Primary {mode === 'interface' ? 'Adapter' : 'Gateway'}</label>
+                  <select 
+                    value={primaryNetwork} 
+                    onChange={(e) => setPrimaryNetwork(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5"
+                  >
+                    <option value="" disabled>Select Primary...</option>
+                    {mode === 'interface' 
+                      ? adapters.map(opt => (
+                          <option key={opt.Name} value={opt.Name}>
+                            {opt.Name} ({opt.Status}) — {opt.InterfaceDescription ? opt.InterfaceDescription.substring(0, 30) : ''}...
+                          </option>
+                        ))
+                      : gateways.map(opt => (
+                          <option key={opt.NextHop} value={opt.NextHop}>
+                            {opt.NextHop} (via {opt.InterfaceAlias})
+                          </option>
+                        ))
+                    }
+                  </select>
+               </div>
+               <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-500">Backup {mode === 'interface' ? 'Adapter' : 'Gateway'}</label>
+                  <select 
                     value={backupNetwork} 
                     onChange={(e) => setBackupNetwork(e.target.value)}
-                    placeholder="e.g. Wi-Fi, 10.10.10.254"
                     className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5"
-                  />
+                  >
+                    <option value="" disabled>Select Backup...</option>
+                    {mode === 'interface' 
+                      ? adapters.map(opt => (
+                          <option key={opt.Name} value={opt.Name}>
+                            {opt.Name} ({opt.Status}) — {opt.InterfaceDescription ? opt.InterfaceDescription.substring(0, 30) : ''}...
+                          </option>
+                        ))
+                      : gateways.map(opt => (
+                          <option key={opt.NextHop} value={opt.NextHop}>
+                            {opt.NextHop} (via {opt.InterfaceAlias})
+                          </option>
+                        ))
+                    }
+                  </select>
                </div>
                <div className="flex items-center justify-between pt-2">
                   <span className="text-xs font-medium text-emerald-600">{configMsg}</span>

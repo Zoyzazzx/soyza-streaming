@@ -1,30 +1,55 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { exec } from 'child_process';
+import util from 'util';
+
+const execAsync = util.promisify(exec);
 
 export async function GET() {
   try {
     const envPath = path.join(process.cwd(), '..', 'monitor', '.env');
-    if (!fs.existsSync(envPath)) {
-      return NextResponse.json({ error: 'monitor/.env not found' }, { status: 404 });
-    }
-
-    const envData = fs.readFileSync(envPath, 'utf8');
-    const lines = envData.split('\n');
-    let primary = '';
-    let backup = '';
-
-    for (const line of lines) {
-      if (line.startsWith('PRIMARY_INTERFACE=')) {
-        primary = line.split('=')[1].trim();
-      } else if (line.startsWith('BACKUP_INTERFACE=')) {
-        backup = line.split('=')[1].trim();
+    let envConfig: any = {};
+    if (fs.existsSync(envPath)) {
+      const envData = fs.readFileSync(envPath, 'utf8');
+      const lines = envData.split('\n');
+      for (const line of lines) {
+        if (line.includes('=')) {
+          const [key, ...rest] = line.split('=');
+          envConfig[key.trim()] = rest.join('=').trim();
+        }
       }
     }
 
-    return NextResponse.json({ primary, backup });
+    const mode = envConfig['FAILOVER_MODE'] || 'interface';
+    const primary = envConfig['PRIMARY_TARGET'] || envConfig['PRIMARY_INTERFACE'] || '';
+    const backup = envConfig['BACKUP_TARGET'] || envConfig['BACKUP_INTERFACE'] || '';
+
+    // Fetch All Adapters (so even disconnected ones can be selected as backup)
+    const { stdout: adaptersOut } = await execAsync(`powershell -Command "@(Get-NetAdapter | Select-Object Name, Status, InterfaceDescription) | ConvertTo-Json -Compress"`);
+    const adapters = adaptersOut.trim() ? JSON.parse(adaptersOut) : [];
+
+    // Fetch Default Gateways
+    const { stdout: routesOut } = await execAsync(`powershell -Command "@(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Select-Object NextHop, InterfaceAlias) | ConvertTo-Json -Compress"`);
+    const gateways = routesOut.trim() ? JSON.parse(routesOut) : [];
+
+    const primaryLabel = envConfig['PRIMARY_LABEL'] || '';
+    const backupLabel = envConfig['BACKUP_LABEL'] || '';
+
+    // Remove duplicates from gateways just in case, though they are usually unique NextHops
+    const uniqueGateways = Array.from(new Map(gateways.map((g: any) => [g.NextHop, g])).values());
+
+    return NextResponse.json({
+      mode,
+      primary,
+      backup,
+      primaryLabel,
+      backupLabel,
+      adapters,
+      gateways: uniqueGateways
+    });
   } catch (error) {
-    console.error('Error reading env:', error);
+    console.error('Error fetching settings/network data:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
@@ -32,10 +57,10 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { primary, backup } = body;
+    const { mode, primary, backup } = body; // mode: 'interface' | 'gateway'
     
-    if (!primary || !backup) {
-      return NextResponse.json({ error: 'Missing primary or backup values' }, { status: 400 });
+    if (!mode || !primary || !backup) {
+      return NextResponse.json({ error: 'Missing mode, primary, or backup values' }, { status: 400 });
     }
 
     const envPath = path.join(process.cwd(), '..', 'monitor', '.env');
@@ -45,21 +70,29 @@ export async function POST(req: Request) {
 
     let envData = fs.readFileSync(envPath, 'utf8');
     
-    // Replace the primary and backup interfaces
-    envData = envData.replace(/^PRIMARY_INTERFACE=.*$/m, `PRIMARY_INTERFACE=${primary}`);
-    envData = envData.replace(/^BACKUP_INTERFACE=.*$/m, `BACKUP_INTERFACE=${backup}`);
-    
-    // As a bonus, we will update the labels if the user types in standard things like Ethernet/WiFi,
-    // otherwise we just set the label to the interface name.
-    const primaryLabel = primary === 'Ethernet' ? '5G Ethernet' : primary === 'Wi-Fi' ? '4G WiFi' : primary;
-    const backupLabel = backup === 'Ethernet' ? '5G Ethernet' : backup === 'Wi-Fi' ? '4G WiFi' : backup;
-    
-    envData = envData.replace(/^PRIMARY_LABEL=.*$/m, `PRIMARY_LABEL=${primaryLabel}`);
-    envData = envData.replace(/^BACKUP_LABEL=.*$/m, `BACKUP_LABEL=${backupLabel}`);
+    const setOrReplaceEnv = (key: string, value: string) => {
+      const regex = new RegExp(`^${key}=.*$`, 'm');
+      if (regex.test(envData)) {
+        envData = envData.replace(regex, `${key}=${value}`);
+      } else {
+        envData += `\n${key}=${value}`;
+      }
+    };
 
-    fs.writeFileSync(envPath, envData, 'utf8');
+    setOrReplaceEnv('FAILOVER_MODE', mode);
+    setOrReplaceEnv('PRIMARY_TARGET', primary);
+    setOrReplaceEnv('BACKUP_TARGET', backup);
+    
+    // For backwards compatibility and label usage
+    setOrReplaceEnv('PRIMARY_INTERFACE', primary);
+    setOrReplaceEnv('BACKUP_INTERFACE', backup);
+    
+    setOrReplaceEnv('PRIMARY_LABEL', `Primary ${mode === 'gateway' ? 'GW' : 'IF'}: ${primary}`);
+    setOrReplaceEnv('BACKUP_LABEL', `Backup ${mode === 'gateway' ? 'GW' : 'IF'}: ${backup}`);
 
-    return NextResponse.json({ success: true, primary, backup });
+    fs.writeFileSync(envPath, envData.trim() + '\n', 'utf8');
+
+    return NextResponse.json({ success: true, mode, primary, backup });
   } catch (error) {
     console.error('Error updating env:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

@@ -66,9 +66,10 @@ function LatencyBar({ latencyMs, threshold = 150 }: { latencyMs: number | null; 
 
 export default function NetworkStatus() {
   const [readings, setReadings] = useState<NetworkReading[]>([]);
+  const [activeLabels, setActiveLabels] = useState<string[]>([]);
   const supabase = createClient();
 
-  // Initial fetch
+  // Initial fetch for readings
   useEffect(() => {
     supabase
       .from("network_readings")
@@ -78,6 +79,23 @@ export default function NetworkStatus() {
       .then(({ data }) => {
         if (data) setReadings(data);
       });
+  }, []);
+
+  // Fetch active config to filter out stale interfaces
+  useEffect(() => {
+    const fetchConfig = () => {
+      fetch("/api/settings")
+        .then(res => res.json())
+        .then(data => {
+          if (data.primaryLabel && data.backupLabel) {
+            setActiveLabels([data.primaryLabel, data.backupLabel]);
+          }
+        })
+        .catch(() => {});
+    };
+    fetchConfig();
+    const interval = setInterval(fetchConfig, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // Realtime subscription
@@ -96,7 +114,9 @@ export default function NetworkStatus() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const latest = getLatestPerInterface(readings);
+  const latest = getLatestPerInterface(readings).filter(r => 
+    activeLabels.length === 0 || activeLabels.includes(r.interface)
+  );
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">

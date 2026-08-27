@@ -1,11 +1,11 @@
 """
 Soyza Project — Network Monitor & Failover Script
 ==================================================
-Monitors two network interfaces (5G Ethernet + 4G WiFi).
+Monitors two network paths (Adapters OR Gateways).
 Switches Windows routing when the primary link degrades.
 Logs all readings and failover events to Supabase.
 
-MUST be run as Administrator (required for Set-NetIPInterface).
+MUST be run as Administrator (required for Set-NetIPInterface / Set-NetRoute).
 
 Usage:
     python monitor.py
@@ -27,10 +27,13 @@ load_dotenv()
 
 SUPABASE_URL  = os.getenv("SUPABASE_URL")
 SUPABASE_KEY  = os.getenv("SUPABASE_KEY")
-PRIMARY_IF    = os.getenv("PRIMARY_INTERFACE", "Ethernet")      # 5G
-BACKUP_IF     = os.getenv("BACKUP_INTERFACE",  "Wi-Fi")         # 4G
-PRIMARY_LABEL = os.getenv("PRIMARY_LABEL",     "5G Ethernet")
-BACKUP_LABEL  = os.getenv("BACKUP_LABEL",      "4G WiFi")
+
+FAILOVER_MODE = os.getenv("FAILOVER_MODE", "interface") # "interface" or "gateway"
+PRIMARY_TARGET = os.getenv("PRIMARY_TARGET", "Ethernet") 
+BACKUP_TARGET  = os.getenv("BACKUP_TARGET",  "Wi-Fi")
+
+PRIMARY_LABEL = os.getenv("PRIMARY_LABEL",     f"Primary: {PRIMARY_TARGET}")
+BACKUP_LABEL  = os.getenv("BACKUP_LABEL",      f"Backup: {BACKUP_TARGET}")
 LATENCY_THRESH   = float(os.getenv("LATENCY_THRESHOLD_MS",           "150"))
 LOSS_THRESH      = float(os.getenv("PACKET_LOSS_THRESHOLD_PERCENT",  "20"))
 POLL_INTERVAL    = float(os.getenv("POLL_INTERVAL_SECONDS",          "5"))
@@ -69,23 +72,24 @@ def get_interface_ip(interface_alias: str) -> str | None:
         return None
 
 
-def ping_interface(interface_alias: str, source_ip: str | None) -> dict:
+def ping_target(target: str, mode: str) -> dict:
     """
-    Ping PING_TARGET via a specific interface.
-    Returns: { latency_ms: float|None, packet_loss: float }
+    Ping PING_TARGET. If mode is interface, bind to the interface IP.
+    If mode is gateway, just ping the gateway IP directly to verify link health.
     """
     PACKETS = 4
 
-    if source_ip is None:
-        # Interface has no IP (disconnected)
-        return {"latency_ms": None, "packet_loss": 100.0}
-
     try:
-        # Windows ping with -S to bind to a specific source IP
-        result = subprocess.run(
-            ["ping", "-n", str(PACKETS), "-S", source_ip, PING_TARGET],
-            capture_output=True, text=True, timeout=20
-        )
+        if mode == "interface":
+            source_ip = get_interface_ip(target)
+            if not source_ip:
+                return {"latency_ms": None, "packet_loss": 100.0}
+            cmd = ["ping", "-n", str(PACKETS), "-S", source_ip, PING_TARGET]
+        else:
+            # Gateway mode: just ping the gateway to check its health
+            cmd = ["ping", "-n", str(PACKETS), target]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
         output = result.stdout
 
         # Parse packet loss
@@ -104,7 +108,7 @@ def ping_interface(interface_alias: str, source_ip: str | None) -> dict:
     except subprocess.TimeoutExpired:
         return {"latency_ms": None, "packet_loss": 100.0}
     except Exception as e:
-        print(f"[WARN] Ping error on {interface_alias}: {e}")
+        print(f"[WARN] Ping error on {target}: {e}")
         return {"latency_ms": None, "packet_loss": 100.0}
 
 
@@ -119,18 +123,27 @@ def is_degraded(ping_result: dict) -> bool:
     return False
 
 
-def set_interface_metric(interface_alias: str, metric: int):
-    """Change the Windows routing metric for an interface (requires Admin)."""
+def switch_route(target: str, metric: int, mode: str):
+    """Change the Windows routing metric depending on failover mode."""
     try:
-        subprocess.run(
-            ["powershell", "-Command",
-             f'Set-NetIPInterface -InterfaceAlias "{interface_alias}" '
-             f'-InterfaceMetric {metric}'],
-            capture_output=True, text=True, timeout=10, check=True
-        )
-        print(f"[ROUTE] Set {interface_alias} metric → {metric}")
+        if mode == "interface":
+            subprocess.run(
+                ["powershell", "-Command",
+                 f'Set-NetIPInterface -InterfaceAlias "{target}" '
+                 f'-InterfaceMetric {metric}'],
+                capture_output=True, text=True, timeout=10, check=True
+            )
+            print(f"[ROUTE] Set IF {target} metric → {metric}")
+        else:
+            subprocess.run(
+                ["powershell", "-Command",
+                 f'Set-NetRoute -DestinationPrefix "0.0.0.0/0" -NextHop "{target}" '
+                 f'-RouteMetric {metric}'],
+                capture_output=True, text=True, timeout=10, check=True
+            )
+            print(f"[ROUTE] Set GW {target} metric → {metric}")
     except subprocess.CalledProcessError as e:
-        print(f"[ERROR] Failed to set metric for {interface_alias}: {e.stderr}")
+        print(f"[ERROR] Failed to set metric for {target}: {e.stderr}")
 
 
 def insert_network_reading(interface_label: str, ping_result: dict, is_active: bool):
@@ -166,13 +179,13 @@ def insert_failover_event(event_type: str, from_label: str, to_label: str,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Startup: set initial routing (primary = 5G = lower metric)
+# Startup: set initial routing (primary = lower metric)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def initialize_routing():
-    print(f"[INIT] Setting initial routing: {PRIMARY_IF} (metric=10), {BACKUP_IF} (metric=50)")
-    set_interface_metric(PRIMARY_IF, 10)
-    set_interface_metric(BACKUP_IF, 50)
+    print(f"[INIT] Setting initial routing: {PRIMARY_TARGET} (metric=10), {BACKUP_TARGET} (metric=50)")
+    switch_route(PRIMARY_TARGET, 10, FAILOVER_MODE)
+    switch_route(BACKUP_TARGET, 50, FAILOVER_MODE)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -185,8 +198,9 @@ def main():
     print("=" * 60)
     print("  Soyza Project — Network Monitor & Failover")
     print("=" * 60)
-    print(f"  Primary  : {PRIMARY_LABEL} ({PRIMARY_IF})")
-    print(f"  Backup   : {BACKUP_LABEL} ({BACKUP_IF})")
+    print(f"  Mode     : {FAILOVER_MODE}")
+    print(f"  Primary  : {PRIMARY_LABEL} ({PRIMARY_TARGET})")
+    print(f"  Backup   : {BACKUP_LABEL} ({BACKUP_TARGET})")
     print(f"  Target   : {PING_TARGET}")
     print(f"  Threshold: latency > {LATENCY_THRESH}ms | loss > {LOSS_THRESH}%")
     print(f"  Poll     : every {POLL_INTERVAL}s")
@@ -197,13 +211,9 @@ def main():
     while True:
         now = datetime.now().strftime("%H:%M:%S")
 
-        # Get current IPs for both interfaces
-        primary_ip = get_interface_ip(PRIMARY_IF)
-        backup_ip  = get_interface_ip(BACKUP_IF)
-
-        # Ping both interfaces
-        primary_result = ping_interface(PRIMARY_IF, primary_ip)
-        backup_result  = ping_interface(BACKUP_IF,  backup_ip)
+        # Ping both targets
+        primary_result = ping_target(PRIMARY_TARGET, FAILOVER_MODE)
+        backup_result  = ping_target(BACKUP_TARGET, FAILOVER_MODE)
 
         primary_active = (active_interface == "primary")
         backup_active  = (active_interface == "backup")
@@ -234,8 +244,8 @@ def main():
             print(f"\n[FAILOVER] ⚠️  {reason}")
             print(f"[FAILOVER] Switching: {PRIMARY_LABEL} → {BACKUP_LABEL}")
 
-            set_interface_metric(PRIMARY_IF, 100)   # demote primary
-            set_interface_metric(BACKUP_IF,  10)    # promote backup
+            switch_route(PRIMARY_TARGET, 100, FAILOVER_MODE)   # demote primary
+            switch_route(BACKUP_TARGET,  10,  FAILOVER_MODE)   # promote backup
 
             active_interface = "backup"
             recovery_counter = 0
@@ -260,8 +270,8 @@ def main():
                     reason = f"Primary recovered: latency={p_lat}, loss={p_loss}"
                     print(f"\n[RECOVERY] ✅ Restoring primary: {BACKUP_LABEL} → {PRIMARY_LABEL}")
 
-                    set_interface_metric(PRIMARY_IF, 10)   # restore primary
-                    set_interface_metric(BACKUP_IF,  50)   # demote backup
+                    switch_route(PRIMARY_TARGET, 10, FAILOVER_MODE)   # restore primary
+                    switch_route(BACKUP_TARGET,  50, FAILOVER_MODE)   # demote backup
 
                     active_interface = "primary"
                     recovery_counter = 0

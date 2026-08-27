@@ -57,12 +57,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { mode, primary, backup } = body; // mode: 'interface' | 'gateway'
+    const { mode, primary, backup, reset } = body; // mode: 'interface' | 'gateway'
     
-    if (!mode || !primary || !backup) {
-      return NextResponse.json({ error: 'Missing mode, primary, or backup values' }, { status: 400 });
-    }
-
     const envPath = path.join(process.cwd(), '..', 'monitor', '.env');
     if (!fs.existsSync(envPath)) {
       return NextResponse.json({ error: 'monitor/.env not found' }, { status: 404 });
@@ -78,6 +74,22 @@ export async function POST(req: Request) {
         envData += `\n${key}=${value}`;
       }
     };
+
+    if (reset) {
+      setOrReplaceEnv('PRIMARY_TARGET', '');
+      setOrReplaceEnv('BACKUP_TARGET', '');
+      setOrReplaceEnv('PRIMARY_INTERFACE', '');
+      setOrReplaceEnv('BACKUP_INTERFACE', '');
+      setOrReplaceEnv('PRIMARY_LABEL', '');
+      setOrReplaceEnv('BACKUP_LABEL', '');
+      
+      fs.writeFileSync(envPath, envData.trim() + '\n', 'utf8');
+      return NextResponse.json({ success: true, reset: true });
+    }
+
+    if (!mode || !primary || !backup) {
+      return NextResponse.json({ error: 'Missing mode, primary, or backup values' }, { status: 400 });
+    }
 
     setOrReplaceEnv('FAILOVER_MODE', mode);
     setOrReplaceEnv('PRIMARY_TARGET', primary);

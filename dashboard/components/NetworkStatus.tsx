@@ -104,9 +104,14 @@ export default function NetworkStatus() {
     return () => clearInterval(interval);
   }, []);
 
-  const latest = getLatestPerInterface(readings).filter(r => 
-    activeLabels.length === 0 || activeLabels.includes(r.interface)
-  );
+  const latest = getLatestPerInterface(readings)
+    .filter(r => activeLabels.length === 0 || activeLabels.includes(r.interface))
+    .sort((a, b) => {
+      if (activeLabels.length > 0) {
+        return activeLabels.indexOf(a.interface) - activeLabels.indexOf(b.interface);
+      }
+      return 0;
+    });
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
@@ -126,41 +131,50 @@ export default function NetworkStatus() {
         </div>
       ) : (
         <div className="space-y-4">
-          {latest.map((r) => (
-            <div key={r.interface} className={`rounded-xl p-4 border transition-all ${
-              r.is_active
-                ? "border-indigo-200 bg-indigo-50/50 shadow-sm"
-                : "border-gray-100 bg-gray-50"
-            }`}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <StatusDot healthy={r.is_healthy} />
-                  <span className="text-sm font-bold text-gray-900">{r.interface}</span>
-                  {r.is_active && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
-                      ACTIVE
-                    </span>
-                  )}
-                </div>
-                <span className={`text-xs font-bold ${r.is_healthy ? "text-emerald-600" : "text-red-600"}`}>
-                  {r.is_healthy ? "Healthy" : "Degraded"}
-                </span>
-              </div>
+          {latest.map((r) => {
+            let cardStyle = "border-gray-100 bg-gray-50";
+            if (r.is_active && r.is_healthy) {
+              cardStyle = "border-emerald-200 bg-emerald-50/50 shadow-sm";
+            } else if (r.is_active && !r.is_healthy) {
+              cardStyle = "border-red-300 bg-red-50 shadow-sm animate-[pulse_1.5s_ease-in-out_infinite]";
+            } else if (!r.is_active && !r.is_healthy) {
+              cardStyle = "border-red-200 bg-red-50/50";
+            } else if (!r.is_active && r.is_healthy) {
+              cardStyle = "border-gray-200 bg-gray-50"; // Idle backup
+            }
 
-              <div className="space-y-2">
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 mb-1">Latency</p>
-                  <LatencyBar latencyMs={r.latency_ms} />
-                </div>
-                <div className="flex justify-between text-xs font-medium mt-1">
-                  <span className="text-gray-500">Packet Loss</span>
-                  <span className={r.packet_loss > 20 ? "text-red-600 font-bold" : "text-gray-700"}>
-                    {r.packet_loss.toFixed(0)}%
+            return (
+              <div key={r.interface} className={`rounded-xl p-4 border transition-all ${cardStyle}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <StatusDot healthy={r.is_healthy} />
+                    <span className="text-sm font-bold text-gray-900">{r.interface}</span>
+                    {r.is_active && (
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.is_healthy ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
+                        ACTIVE
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-xs font-bold ${r.is_healthy ? "text-emerald-600" : "text-red-600"}`}>
+                    {r.is_healthy ? "Healthy" : "Degraded"}
                   </span>
                 </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Latency</p>
+                    <LatencyBar latencyMs={r.latency_ms} />
+                  </div>
+                  <div className="flex justify-between text-xs font-medium mt-1">
+                    <span className="text-gray-500">Packet Loss</span>
+                    <span className={r.packet_loss > 20 ? "text-red-600 font-bold" : "text-gray-700"}>
+                      {r.packet_loss.toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

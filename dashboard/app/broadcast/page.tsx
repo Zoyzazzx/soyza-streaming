@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LogOut, Home, Settings, Radio, Video, Mic, Monitor, Network, Save } from "lucide-react";
+import { LogOut, Home, Settings, Radio, Video, Mic, Monitor, Network, Save, X, RefreshCw } from "lucide-react";
 import NetworkStatus from "@/components/NetworkStatus";
 import FailoverLog from "@/components/FailoverLog";
 
@@ -24,6 +24,8 @@ export default function BroadcastStudio() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [broadcastStartTime, setBroadcastStartTime] = useState<number | null>(null);
+  const [broadcastDuration, setBroadcastDuration] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   
   // Devices
@@ -41,6 +43,7 @@ export default function BroadcastStudio() {
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [configSaving, setConfigSaving] = useState(false);
   const [configMsg, setConfigMsg] = useState("");
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
   const router = useRouter();
   const supabase = createClient();
@@ -112,6 +115,11 @@ export default function BroadcastStudio() {
 
   const startBroadcast = async () => {
     if (!stream) return;
+    if (!primaryNetwork || !backupNetwork) {
+      setError("Failover configuration is incomplete. Please configure primary and backup connections.");
+      setIsConfigModalOpen(true);
+      return;
+    }
     setError(null);
     try {
       const pc = new RTCPeerConnection({
@@ -170,6 +178,8 @@ export default function BroadcastStudio() {
       }));
 
       setIsBroadcasting(true);
+      setBroadcastStartTime(Date.now());
+      setBroadcastDuration(0);
     } catch (err: any) {
       setError(`Broadcast failed: ${err.message}`);
       setIsBroadcasting(false);
@@ -182,6 +192,8 @@ export default function BroadcastStudio() {
       pcRef.current = null;
     }
     setIsBroadcasting(false);
+    setBroadcastStartTime(null);
+    setBroadcastDuration(0);
 
     try {
       await fetch("http://localhost:4000/api/stitch", { method: "POST" });
@@ -197,6 +209,41 @@ export default function BroadcastStudio() {
     };
   }, []);
 
+  // Prevent accidental page refresh/unload when broadcasting
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isBroadcasting) {
+        e.preventDefault();
+        // Standard way to show a warning dialog in modern browsers
+        e.returnValue = "You are currently broadcasting. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isBroadcasting]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isBroadcasting && broadcastStartTime) {
+      interval = setInterval(() => {
+        setBroadcastDuration(Math.floor((Date.now() - broadcastStartTime) / 1000));
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isBroadcasting, broadcastStartTime]);
+
+  const formatDuration = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   const saveNetworkConfig = async () => {
     setConfigSaving(true);
     setConfigMsg("");
@@ -208,11 +255,37 @@ export default function BroadcastStudio() {
        });
        if(res.ok) {
          setConfigMsg("Saved! Restart monitor script.");
+         setTimeout(() => setIsConfigModalOpen(false), 1500);
        } else {
          setConfigMsg("Failed to save.");
        }
     } catch(err) {
        setConfigMsg("Error saving config.");
+    } finally {
+       setConfigSaving(false);
+       setTimeout(() => setConfigMsg(""), 3000);
+    }
+  };
+
+  const resetNetworkConfig = async () => {
+    setConfigSaving(true);
+    setConfigMsg("");
+    try {
+       const res = await fetch("/api/settings", {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ reset: true })
+       });
+       if(res.ok) {
+         setPrimaryNetwork("");
+         setBackupNetwork("");
+         setConfigMsg("Configuration reset.");
+         setTimeout(() => setIsConfigModalOpen(false), 1500);
+       } else {
+         setConfigMsg("Failed to reset.");
+       }
+    } catch(err) {
+       setConfigMsg("Error resetting config.");
     } finally {
        setConfigSaving(false);
        setTimeout(() => setConfigMsg(""), 3000);
@@ -263,6 +336,7 @@ export default function BroadcastStudio() {
                  <div className="bg-red-100 px-3 py-1 rounded-full flex items-center gap-2 shadow-sm border border-red-200">
                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                    <span className="text-red-700 text-[10px] font-bold tracking-widest uppercase">Live Broadcast</span>
+                   <span className="text-red-700 font-mono text-xs font-bold border-l border-red-200 pl-2 ml-1">{formatDuration(broadcastDuration)}</span>
                  </div>
                )}
              </div>
@@ -335,26 +409,38 @@ export default function BroadcastStudio() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {!stream ? (
-                      <button onClick={startCamera} className="px-6 py-3 rounded-xl bg-gray-900 hover:bg-black text-white font-semibold text-sm transition-all shadow-md flex items-center gap-2">
+                      <button onClick={startCamera} className="px-6 py-3 rounded-xl bg-gray-900 hover:bg-black hover:shadow-lg hover:-translate-y-0.5 text-white font-semibold text-sm transition-all duration-300 shadow-md flex items-center gap-2">
                         <Video className="w-4 h-4" /> Enable Camera
                       </button>
                     ) : (
-                      <button onClick={stopCamera} disabled={isBroadcasting} className="px-6 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm transition-all flex items-center gap-2 disabled:opacity-50">
-                        Stop Camera
+                      <button onClick={stopCamera} disabled={isBroadcasting} className="group relative px-6 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold text-sm transition-all duration-300 flex items-center justify-center w-[160px] shadow-sm hover:bg-red-50 hover:border-red-200 hover:text-red-600 hover:shadow-md disabled:opacity-50 disabled:hover:bg-emerald-50 disabled:hover:border-emerald-200 disabled:hover:text-emerald-700 disabled:hover:shadow-sm disabled:cursor-not-allowed">
+                        <span className="absolute flex items-center gap-2 transition-opacity duration-300 group-hover:opacity-0 group-disabled:group-hover:opacity-100">
+                          <span className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" />
+                          Camera Active
+                        </span>
+                        <span className="absolute flex items-center gap-2 transition-opacity duration-300 opacity-0 group-hover:opacity-100 group-disabled:group-hover:opacity-0">
+                          Stop Camera
+                        </span>
                       </button>
                     )}
                   </div>
                   
-                  {error && <p className="text-xs text-red-500 font-medium px-4">{error}</p>}
+                  {error && <p className="text-xs text-red-500 font-medium px-4 text-center max-w-xs">{error}</p>}
 
                   <div>
                      {!isBroadcasting ? (
-                       <button onClick={startBroadcast} disabled={!stream} className="px-8 py-3 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold text-sm transition-all shadow-lg shadow-red-500/30 flex items-center gap-2 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed">
+                       <button onClick={startBroadcast} disabled={!stream} className="px-8 py-3 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 hover:shadow-xl hover:-translate-y-0.5 text-white font-bold text-sm transition-all duration-300 shadow-lg shadow-red-500/30 flex items-center gap-2 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed disabled:hover:translate-y-0">
                          <Radio className="w-4 h-4" /> Start Broadcast
                        </button>
                      ) : (
-                       <button onClick={stopBroadcast} className="px-8 py-3 rounded-xl bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-700 border border-gray-200 font-bold text-sm transition-all flex items-center gap-2 shadow-sm">
-                         Stop Broadcast
+                       <button onClick={stopBroadcast} className="group relative px-8 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-bold text-sm transition-all duration-300 flex items-center justify-center w-[190px] shadow-sm hover:bg-gray-900 hover:border-gray-900 hover:text-white hover:shadow-lg">
+                         <div className="absolute inset-0 bg-red-100/40 rounded-xl animate-[pulse_1.5s_ease-in-out_infinite] group-hover:hidden" />
+                         <span className="relative flex items-center gap-2 transition-opacity duration-300 group-hover:opacity-0">
+                           <Radio className="w-4 h-4 animate-pulse" /> Broadcasting Live
+                         </span>
+                         <span className="absolute flex items-center gap-2 transition-opacity duration-300 opacity-0 group-hover:opacity-100">
+                           Stop Broadcast
+                         </span>
                        </button>
                      )}
                   </div>
@@ -367,16 +453,39 @@ export default function BroadcastStudio() {
         {/* Right Column: Network Config, Status, Logs */}
         <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-700 delay-100">
            
-           {/* Network Config */}
-           <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
-             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-               <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-2">
-                 <Network className="w-4 h-4 text-indigo-500" />
-                 Failover Configuration
-               </h2>
-             </div>
-             
-             <div className="space-y-4 pt-1">
+           <div className="flex items-center justify-between px-1">
+             <h2 className="text-xl font-extrabold text-gray-900 tracking-tight">Status & Logs</h2>
+             <button 
+               onClick={() => setIsConfigModalOpen(true)}
+               className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+             >
+               <Network className="w-3.5 h-3.5" /> Configure Failover
+             </button>
+           </div>
+
+           <NetworkStatus />
+           <FailoverLog />
+        </div>
+      </main>
+
+      {/* ── Failover Config Modal ── */}
+      {isConfigModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 bg-gray-50/50">
+              <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+                <Network className="w-5 h-5 text-indigo-500" />
+                Failover Configuration
+              </h2>
+              <button 
+                onClick={() => setIsConfigModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-5">
                <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-500">Failover Mode</label>
                   <select 
@@ -436,23 +545,31 @@ export default function BroadcastStudio() {
                     }
                   </select>
                </div>
-               <div className="flex items-center justify-between pt-2">
-                  <span className="text-xs font-medium text-emerald-600">{configMsg}</span>
-                  <button 
-                    onClick={saveNetworkConfig}
-                    disabled={configSaving}
-                    className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Save className="w-3.5 h-3.5" /> {configSaving ? 'Saving...' : 'Save Config'}
-                  </button>
-               </div>
-             </div>
-           </div>
+            </div>
 
-           <NetworkStatus />
-           <FailoverLog />
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+               <span className="text-xs font-medium text-emerald-600">{configMsg}</span>
+               <div className="flex items-center gap-2">
+                 <button 
+                   onClick={resetNetworkConfig}
+                   disabled={configSaving}
+                   className="px-4 py-2 bg-white border border-gray-200 hover:bg-red-50 text-red-600 hover:text-red-700 font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                 >
+                   <RefreshCw className="w-3.5 h-3.5" /> Reset
+                 </button>
+                 <button 
+                   onClick={saveNetworkConfig}
+                   disabled={configSaving || !primaryNetwork || !backupNetwork}
+                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                 >
+                   <Save className="w-3.5 h-3.5" /> {configSaving ? 'Saving...' : 'Save Config'}
+                 </button>
+               </div>
+            </div>
+          </div>
         </div>
-      </main>
+      )}
+
     </div>
   );
 }

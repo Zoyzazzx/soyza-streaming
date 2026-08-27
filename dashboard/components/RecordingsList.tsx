@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Trash2, Play, VideoOff } from "lucide-react";
 
 interface Recording {
   id: number;
@@ -28,6 +29,7 @@ function formatDate(iso: string) {
 export default function RecordingsList() {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [playing, setPlaying] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -57,68 +59,100 @@ export default function RecordingsList() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  if (recordings.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <div className="w-14 h-14 rounded-full bg-white/5 flex items-center justify-center">
-          <svg className="w-7 h-7 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-              d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5" />
-          </svg>
-        </div>
-        <p className="text-white/30 text-sm">No recordings yet</p>
-        <p className="text-white/20 text-xs">Recordings appear every 30 seconds once streaming starts</p>
-      </div>
-    );
-  }
+  const handleDeleteAll = async () => {
+    if (!window.confirm("Are you sure you want to delete all recordings? This action cannot be undone.")) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch("/api/recordings", { method: "DELETE" });
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        setRecordings([]);
+      } else {
+        alert("Failed to delete recordings: " + (data.error || "Unknown error"));
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("An error occurred while deleting recordings: " + err.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {recordings.map((rec) => (
-        <div
-          key={rec.id}
-          className="group rounded-xl border border-white/10 bg-white/5 hover:border-indigo-500/40 hover:bg-white/8 transition-all overflow-hidden"
-        >
-          {/* Video preview / play area */}
-          <div className="relative aspect-video bg-black">
-            {playing === rec.public_url ? (
-              <video
-                src={rec.public_url}
-                controls
-                autoPlay
-                className="w-full h-full object-contain"
-                onEnded={() => setPlaying(null)}
-              />
-            ) : (
-              <button
-                onClick={() => setPlaying(rec.public_url)}
-                className="absolute inset-0 flex items-center justify-center group/btn"
-              >
-                <div className="w-12 h-12 rounded-full bg-white/10 group-hover/btn:bg-indigo-500/80 backdrop-blur flex items-center justify-center transition-all">
-                  <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
-                <span className="absolute bottom-2 right-2 text-xs text-white/40 bg-black/60 px-1.5 py-0.5 rounded">
-                  {rec.duration_seconds ? `${rec.duration_seconds}s` : "30s"}
-                </span>
-              </button>
-            )}
-          </div>
+    <div className="space-y-6">
+      {recordings.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleDeleteAll}
+            disabled={isDeleting}
+            className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-medium text-sm rounded-xl transition-colors disabled:opacity-50"
+          >
+            <Trash2 className="w-4 h-4" />
+            {isDeleting ? "Deleting..." : "Delete All Recordings"}
+          </button>
+        </div>
+      )}
 
-          {/* Metadata */}
-          <div className="p-3 space-y-1">
-            <p className="text-xs font-medium text-white/70 truncate">{rec.filename}</p>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-white/30">{formatDate(rec.created_at)}</span>
-              <span className="text-xs text-white/30">{formatBytes(rec.file_size_bytes)}</span>
-            </div>
-            {rec.upload_status === "failed" && (
-              <span className="text-xs text-red-400">Upload failed</span>
-            )}
+      {recordings.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 bg-white border border-gray-200 rounded-3xl shadow-sm">
+          <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center border border-gray-100">
+            <VideoOff className="w-8 h-8 text-gray-300" />
+          </div>
+          <div className="text-center">
+            <p className="text-gray-900 font-medium text-lg">No recordings yet</p>
+            <p className="text-gray-500 text-sm mt-1 max-w-sm mx-auto">Recordings appear every 30 seconds once streaming starts in the Broadcast Studio.</p>
           </div>
         </div>
-      ))}
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {recordings.map((rec) => (
+            <div
+              key={rec.id}
+              className="group rounded-2xl border border-gray-200 bg-white hover:border-indigo-300 hover:shadow-lg transition-all overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-500"
+            >
+              {/* Video preview / play area */}
+              <div className="relative aspect-video bg-gray-900">
+                {playing === rec.public_url ? (
+                  <video
+                    src={rec.public_url}
+                    controls
+                    autoPlay
+                    className="w-full h-full object-contain"
+                    onEnded={() => setPlaying(null)}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setPlaying(rec.public_url)}
+                    className="absolute inset-0 flex items-center justify-center group/btn focus:outline-none"
+                  >
+                    <div className="w-14 h-14 rounded-full bg-white/10 group-hover/btn:bg-indigo-600/90 group-hover/btn:scale-110 backdrop-blur-md flex items-center justify-center transition-all shadow-lg border border-white/20">
+                      <Play className="w-6 h-6 text-white ml-1" fill="currentColor" />
+                    </div>
+                    <span className="absolute bottom-3 right-3 text-xs font-bold text-white bg-black/70 backdrop-blur-sm px-2 py-1 rounded-md border border-white/10">
+                      {rec.duration_seconds ? `${rec.duration_seconds}s` : "30s"}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* Metadata */}
+              <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
+                <p className="text-sm font-semibold text-gray-800 truncate" title={rec.filename}>{rec.filename}</p>
+                <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-50">
+                  <span className="text-xs font-medium text-gray-500">{formatDate(rec.created_at)}</span>
+                  <div className="flex items-center gap-2">
+                    {rec.upload_status === "failed" && (
+                      <span className="text-[10px] uppercase font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">Failed</span>
+                    )}
+                    <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">{formatBytes(rec.file_size_bytes)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

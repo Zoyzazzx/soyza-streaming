@@ -2,29 +2,81 @@
 monitor/.env
 upload-worker/.env
 dashboard/.env.local
+dashboard/.env.production
 **/.env
 **/.env.local
+**/.env.*.local
+*.env
+*.key
+*.pem
+*.crt
+*.cert
 
-# ─── Node ────────────────────────────────────────────────────
+# ─── Node & Package Managers ────────────────────────────────
 node_modules/
+**/node_modules/
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 .npm
 
-# ─── Next.js ────────────────────────────────────────────────
+# ─── Next.js & Builds ───────────────────────────────────────
 dashboard/.next/
 dashboard/out/
+.next/
+out/
+dist/
+build/
 
 # ─── Python ─────────────────────────────────────────────────
 __pycache__/
+**/__pycache__/
 *.py[cod]
+*$py.class
 *.pyo
 .venv/
 venv/
+ENV/
+env/
+*.egg-info/
 
-# ─── MediaMTX recordings (don't commit video files) ─────────
+# ─── MediaMTX & Binary Files ────────────────────────────────
+mediamtx/mediamtx.exe
+mediamtx/mediamtx
+*.exe
+*.dll
+*.so
+*.dylib
+
+# ─── Video & Recordings (Local Temp Files) ───────────────────
 mediamtx/recordings/
+**/recordings/
+*.mp4
+*.ts
+*.m3u8
+*.fmp4
+*.mkv
+*.avi
+list_*.txt
 
-# ─── OS ─────────────────────────────────────────────────────
+# ─── Logs & Temp Files ───────────────────────────────────────
+*.log
+logs/
+temp/
+tmp/
+*.tmp
+
+# ─── IDE & Editors ──────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.agents/
+
+# ─── OS Files ───────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
+ehthumbs.db

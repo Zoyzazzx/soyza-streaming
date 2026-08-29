@@ -49,7 +49,7 @@ export default function ViewerPage() {
       }
     }
     fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
+    const interval = setInterval(fetchStatus, 2000);
     return () => clearInterval(interval);
   }, []);
 

@@ -254,9 +254,47 @@ function start() {
           return;
         }
         log(`✅ Successfully stitched ${files.length} segments into ${masterFile}`);
-        fs.unlinkSync(listPath); // Cleanup list.txt
+        if (fs.existsSync(listPath)) {
+          fs.unlinkSync(listPath); // Cleanup list.txt
+        }
 
-        // The watcher will automatically detect and upload the master file!
+        // Upload master file now
+        try {
+          await uploadFile(masterPath);
+          log(`✨ Master file uploaded. Cleaning up ${files.length} segment files from local and cloud storage...`);
+
+          // 1. Delete intermediate segments from Supabase Storage & Database
+          const segmentFilenames = files;
+          if (segmentFilenames.length > 0) {
+            // Delete from Supabase Storage
+            const { error: storageDelErr } = await supabase.storage
+              .from(BUCKET)
+              .remove(segmentFilenames);
+            if (storageDelErr) {
+              log(`⚠️ Cloud storage cleanup warning: ${storageDelErr.message}`);
+            }
+
+            // Delete from Database
+            const { error: dbDelErr } = await supabase
+              .from("recordings")
+              .delete()
+              .in("filename", segmentFilenames);
+            if (dbDelErr) {
+              log(`⚠️ Database cleanup warning: ${dbDelErr.message}`);
+            }
+          }
+
+          // 2. Delete intermediate segments from local disk
+          for (const file of files) {
+            const segPath = path.join(targetDir, file);
+            if (fs.existsSync(segPath)) {
+              fs.unlinkSync(segPath);
+            }
+          }
+          log(`🧹 Successfully cleaned up all intermediate segment files.`);
+        } catch (postStitchErr) {
+          log(`❌ Post-stitch upload/cleanup error: ${postStitchErr.message}`);
+        }
       });
 
       res.json({ success: true, message: "Stitching started in background", masterFile });

@@ -237,12 +237,28 @@ async function performStitch() {
 
     log(`   Running FFmpeg to create ${masterFile}...`);
     
-    const ffmpegPath = "C:\\Users\\Navindra\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe";
+    // 1. Check for bundled ffmpeg.exe in the same folder as worker.js
+    // 2. Fallback to system-wide ffmpeg or .env configured path
+    const localFfmpeg = path.join(__dirname, "ffmpeg.exe");
+    const ffmpegPath = fs.existsSync(localFfmpeg) 
+      ? localFfmpeg 
+      : (process.env.FFMPEG_PATH || "ffmpeg");
     
     return new Promise((resolve, reject) => {
       exec(`"${ffmpegPath}" -f concat -safe 0 -i "${listPath}" -c copy "${masterPath}"`, async (error, stdout, stderr) => {
         if (error) {
-          log(`❌ FFmpeg failed: ${error.message}`);
+          log(`❌ FFmpeg failed to execute:`);
+          log(`   Error: ${error.message}`);
+          if (error.message.includes("not recognized") || error.message.includes("ENOENT")) {
+            log(`========================================================================`);
+            log(`🚨 CRITICAL: FFMPEG IS MISSING 🚨`);
+            log(`Your system does not have FFmpeg installed, or it's not in your PATH.`);
+            log(`To fix this on ANY system:`);
+            log(`1. Download ffmpeg.exe`);
+            log(`2. Place it in this 'upload-worker' folder`);
+            log(`3. Or install it globally (e.g. via winget install ffmpeg)`);
+            log(`========================================================================`);
+          }
           return reject(error);
         }
         log(`✅ Successfully stitched ${files.length} segments into ${masterFile}`);

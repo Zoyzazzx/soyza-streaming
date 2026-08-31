@@ -38,6 +38,7 @@ SERVICE_DEFAULTS = [
         "admin":          False,
         "hint":           "Folder that contains  mediamtx.exe",
         "default_subdir": "mediamtx",
+        "kill_port":      1935,
     },
     {
         "key":            "monitor",
@@ -432,8 +433,8 @@ class ServicePanel(tk.Frame):
         self._running = False
 
         self._build_header()
-        self._build_log()
         self._build_footer()
+        self._build_log()
 
     # ── cwd property (panels update when config changes) ──────────────────
 
@@ -508,9 +509,9 @@ class ServicePanel(tk.Frame):
         self.log_txt.tag_config("system",  foreground="#818CF8")
 
     def _build_footer(self):
-        tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
         footer = tk.Frame(self, bg=PANEL, pady=9, padx=14)
-        footer.pack(fill="x")
+        footer.pack(side="bottom", fill="x")
+        tk.Frame(self, bg=BORDER, height=1).pack(side="bottom", fill="x")
 
         self.start_btn = tk.Button(
             footer, text="  Start  ", font=FONT_BTN,
@@ -529,6 +530,15 @@ class ServicePanel(tk.Frame):
             command=self.stop, state="disabled",
         )
         self.stop_btn.pack(side="left")
+
+        self.restart_btn = tk.Button(
+            footer, text="  Restart  ", font=FONT_BTN,
+            bg=SURFACE, fg=TEXT_DIM,
+            activebackground=BORDER, activeforeground=TEXT,
+            relief="flat", bd=0, padx=14, pady=6, cursor="hand2",
+            command=self.restart, state="disabled",
+        )
+        self.restart_btn.pack(side="left", padx=(8, 0))
 
         tk.Button(
             footer, text="Clear", font=FONT_BTN,
@@ -563,12 +573,16 @@ class ServicePanel(tk.Frame):
             self.start_btn.config(state="disabled", bg=BORDER, fg=TEXT_MUTED)
             self.stop_btn.config(state="normal", bg=DANGER, fg="white",
                                   activebackground="#C0392B")
+            if hasattr(self, "restart_btn"):
+                self.restart_btn.config(state="normal", bg=WARNING, fg="black", activebackground="#D49A29")
         else:
             self.status_dot.config(fg=TEXT_MUTED)
             self.status_lbl.config(fg=TEXT_MUTED, text="Stopped")
             self.start_btn.config(state="normal", bg=self.svc_def["color"], fg="white",
                                    activebackground=self.svc_def["color"])
             self.stop_btn.config(state="disabled", bg=SURFACE, fg=TEXT_DIM)
+            if hasattr(self, "restart_btn"):
+                self.restart_btn.config(state="disabled", bg=SURFACE, fg=TEXT_DIM)
 
     # ── Process control ──────────────────────────────────────────────────
 
@@ -685,6 +699,19 @@ class ServicePanel(tk.Frame):
         if self.process and self.process.poll() is None:
             self.process.kill()
             self.log("Process force-killed.", "warn")
+
+    def restart(self):
+        if not self._running:
+            return
+        self.log("Restarting...", "system")
+        def _wait_and_start():
+            self.stop()
+            while self._running:
+                time.sleep(0.2)
+            # Give OS a tiny moment to release any ports
+            time.sleep(0.5)
+            self.after(0, self.start)
+        threading.Thread(target=_wait_and_start, daemon=True).start()
 
     @property
     def is_running(self):

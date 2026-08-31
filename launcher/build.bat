@@ -6,8 +6,8 @@ echo.
 
 :: Check Python is available
 where py >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ERROR: Python (py) not found on PATH.
+if errorlevel 1 (
+    echo ERROR: Python 'py' not found on PATH.
     pause
     exit /b 1
 )
@@ -15,7 +15,7 @@ if %errorlevel% neq 0 (
 :: Install PyInstaller if needed
 echo [1/3] Checking PyInstaller...
 py -m pip install pyinstaller --quiet
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo ERROR: Failed to install PyInstaller.
     pause
     exit /b 1
@@ -33,7 +33,7 @@ py -m PyInstaller ^
     --specpath "%~dp0build" ^
     "%~dp0launcher.py"
 
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo ERROR: PyInstaller build failed. See output above.
     pause
     exit /b 1

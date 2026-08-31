@@ -205,6 +205,7 @@ export default function BroadcastStudio() {
   };
 
   const stopBroadcast = async () => {
+    const wasBroadcasting = !!pcRef.current;
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;
@@ -213,10 +214,17 @@ export default function BroadcastStudio() {
     setBroadcastStartTime(null);
     setBroadcastDuration(0);
 
-    try {
-      await fetch("http://localhost:4000/api/stitch", { method: "POST" });
-    } catch (err) {
-      console.error("Could not reach worker to stitch recording:", err);
+    // Only stitch if we were actually broadcasting. 
+    // keepalive: true ensures the request finishes even if the browser tab is closing.
+    if (wasBroadcasting) {
+      try {
+        await fetch("http://localhost:4000/api/stitch", { 
+          method: "POST", 
+          keepalive: true 
+        });
+      } catch (err) {
+        console.error("Could not reach worker to stitch recording:", err);
+      }
     }
   };
 

@@ -27,11 +27,13 @@ export async function GET() {
 
     // Fetch All Adapters (so even disconnected ones can be selected as backup)
     const { stdout: adaptersOut } = await execAsync(`powershell -Command "@(Get-NetAdapter | Select-Object Name, Status, InterfaceDescription) | ConvertTo-Json -Compress"`);
-    const adapters = adaptersOut.trim() ? JSON.parse(adaptersOut) : [];
+    let adapters = adaptersOut.trim() ? JSON.parse(adaptersOut) : [];
+    if (!Array.isArray(adapters)) adapters = [adapters];
 
     // Fetch Default Gateways
     const { stdout: routesOut } = await execAsync(`powershell -Command "@(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Select-Object NextHop, InterfaceAlias) | ConvertTo-Json -Compress"`);
-    const gateways = routesOut.trim() ? JSON.parse(routesOut) : [];
+    let gateways = routesOut.trim() ? JSON.parse(routesOut) : [];
+    if (!Array.isArray(gateways)) gateways = [gateways];
 
     const primaryLabel = envConfig['PRIMARY_LABEL'] || '';
     const backupLabel = envConfig['BACKUP_LABEL'] || '';

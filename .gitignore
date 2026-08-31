@@ -1,12 +1,12 @@
 # ─── Environment / Secrets ───────────────────────────────────
-monitor/.env
-upload-worker/.env
-dashboard/.env.local
-dashboard/.env.production
-**/.env
-**/.env.local
-**/.env.*.local
-*.env
+# monitor/.env
+# upload-worker/.env
+# dashboard/.env.local
+# dashboard/.env.production
+# **/.env
+# **/.env.local
+# **/.env.*.local
+# *.env
 *.key
 *.pem
 *.crt
@@ -42,9 +42,9 @@ env/
 *.egg-info/
 
 # ─── MediaMTX & Binary Files ────────────────────────────────
-mediamtx/mediamtx.exe
-mediamtx/mediamtx
-*.exe
+# mediamtx/mediamtx.exe
+# mediamtx/mediamtx
+# *.exe
 *.dll
 *.so
 *.dylib

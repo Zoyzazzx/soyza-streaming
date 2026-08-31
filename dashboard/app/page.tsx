@@ -1,18 +1,51 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { MonitorPlay, Radio, Settings, LogOut } from "lucide-react";
+import { MonitorPlay, Radio, Settings, LogOut, ShieldCheck, User } from "lucide-react";
 
 export default function HubPage() {
   const router = useRouter();
   const supabase = createClient();
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>("streamer");
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    async function checkUser() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push("/login");
+        return;
+      }
+      
+      const role = session.user.user_metadata?.role || "streamer";
+      setUserEmail(session.user.email || null);
+      setUserRole(role);
+
+      if (role === "viewer") {
+        router.push("/viewer");
+        return;
+      }
+      setCheckingAuth(false);
+    }
+    checkUser();
+  }, [router, supabase]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -20,16 +53,27 @@ export default function HubPage() {
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm animate-in fade-in slide-in-from-top-4 duration-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center shadow-md">
-              <span className="text-white font-bold text-lg leading-none">Z</span>
-            </div>
+            <img 
+              src="/logo.png" 
+              alt="ZoyzaXR Logo" 
+              className="w-10 h-10 rounded-xl shadow-md object-cover border border-purple-100" 
+            />
             <div>
               <span className="font-bold text-gray-900 text-lg tracking-tight block">ZoyzaXR</span>
               <span className="text-gray-500 text-xs">Command Hub</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {userEmail && (
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-lg text-xs font-semibold text-indigo-700">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>{userEmail}</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold bg-indigo-200 text-indigo-800">
+                  {userRole}
+                </span>
+              </div>
+            )}
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -83,9 +127,9 @@ export default function HubPage() {
             <div className="w-16 h-16 rounded-2xl bg-gray-50 text-gray-600 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-gray-800 group-hover:text-white transition-all duration-300 shadow-sm">
               <Settings className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Settings</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Settings & Accounts</h2>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Configure application preferences, account details, and advanced options.
+              Manage streamer & viewer accounts, network settings, and preferences.
             </p>
           </Link>
         </div>

@@ -1,9 +1,20 @@
 import React, { useEffect, useRef } from 'react';
 
-const InteractiveNeuralVortex = ({ children }: { children?: React.ReactNode }) => {
+interface InteractiveNeuralVortexProps {
+  children?: React.ReactNode;
+  colorTheme?: "red" | "blue";
+}
+
+const InteractiveNeuralVortex = ({ children, colorTheme = "blue" }: InteractiveNeuralVortexProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pointer = useRef({ x: 0, y: 0, tX: 0, tY: 0 }); // Real-time pointer updates
   const animationRef = useRef<number | null>(null);
+  const themeTargetRef = useRef(colorTheme === "red" ? 1.0 : 0.0);
+  const currentThemeRef = useRef(colorTheme === "red" ? 1.0 : 0.0);
+
+  useEffect(() => {
+    themeTargetRef.current = colorTheme === "red" ? 1.0 : 0.0;
+  }, [colorTheme]);
 
   // WebGL setup
   useEffect(() => {
@@ -35,6 +46,7 @@ const InteractiveNeuralVortex = ({ children }: { children?: React.ReactNode }) =
       uniform float u_ratio;
       uniform vec2 u_pointer_position;
       uniform float u_scroll_progress;
+      uniform float u_theme; // 0.0 = blue/violet, 1.0 = red/rose
       
       vec2 rotate(vec2 uv, float th) {
         return mat2(cos(th), sin(th), -sin(th), cos(th)) * uv;
@@ -70,13 +82,20 @@ const InteractiveNeuralVortex = ({ children }: { children?: React.ReactNode }) =
         noise = max(.0, noise - .5);
         noise *= (1. - length(vUv - .5));
         
-        vec3 baseColor = vec3(0.98, 0.98, 0.99); // Light theme base
-        vec3 vortexColor = vec3(0.5, 0.15, 0.65);
-        vortexColor = mix(vortexColor, vec3(0.02, 0.7, 0.9), 0.32 + 0.16 * sin(2.0 * u_scroll_progress + 1.2));
-        vortexColor += vec3(0.15, 0.0, 0.6) * sin(2.0 * u_scroll_progress + 1.5);
+        // Blue / Cyan theme for Viewer
+        vec3 blueVortex = vec3(0.1, 0.45, 0.85);
+        blueVortex = mix(blueVortex, vec3(0.02, 0.7, 0.9), 0.32 + 0.16 * sin(2.0 * u_scroll_progress + 1.2));
+        blueVortex += vec3(0.05, 0.2, 0.7) * sin(2.0 * u_scroll_progress + 1.5);
+        
+        // Royal Purple / Violet theme for Streamer
+        vec3 purpleVortex = vec3(0.55, 0.15, 0.85);
+        purpleVortex = mix(purpleVortex, vec3(0.75, 0.25, 0.95), 0.32 + 0.16 * sin(2.0 * u_scroll_progress + 1.2));
+        purpleVortex += vec3(0.35, 0.05, 0.6) * sin(2.0 * u_scroll_progress + 1.5);
+        
+        vec3 vortexColor = mix(blueVortex, purpleVortex, u_theme);
         
         // mix base color and vortex color based on noise
-        color = mix(baseColor, vortexColor, noise * 0.12); // subtle light theme effect
+        color = mix(baseColor, vortexColor, noise * (0.13 + 0.03 * u_theme));
         
         gl_FragColor = vec4(color, 1.0);
       }
@@ -129,6 +148,7 @@ const InteractiveNeuralVortex = ({ children }: { children?: React.ReactNode }) =
     const uRatio = gl.getUniformLocation(program, 'u_ratio');
     const uPointerPosition = gl.getUniformLocation(program, 'u_pointer_position');
     const uScrollProgress = gl.getUniformLocation(program, 'u_scroll_progress');
+    const uTheme = gl.getUniformLocation(program, 'u_theme');
 
     // Resize handler
     const resizeCanvas = () => {
@@ -150,12 +170,16 @@ const InteractiveNeuralVortex = ({ children }: { children?: React.ReactNode }) =
       pointer.current.x += (pointer.current.tX - pointer.current.x) * 0.2;
       pointer.current.y += (pointer.current.tY - pointer.current.y) * 0.2;
       
+      // Smooth color theme interpolation
+      currentThemeRef.current += (themeTargetRef.current - currentThemeRef.current) * 0.08;
+
       gl.uniform1f(uTime, currentTime);
       gl.uniform2f(uPointerPosition, 
         pointer.current.x / window.innerWidth, 
         1 - pointer.current.y / window.innerHeight
       );
       gl.uniform1f(uScrollProgress, window.scrollY / (2 * window.innerHeight));
+      gl.uniform1f(uTheme, currentThemeRef.current);
       
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       animationRef.current = requestAnimationFrame(render);

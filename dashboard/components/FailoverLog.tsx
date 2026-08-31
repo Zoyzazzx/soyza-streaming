@@ -29,21 +29,32 @@ function EventBadge({ type }: { type: FailoverEvent["event_type"] }) {
   );
 }
 
-export default function FailoverLog() {
+interface FailoverLogProps {
+  sessionStartTime?: number | null;
+}
+
+export default function FailoverLog({ sessionStartTime }: FailoverLogProps) {
   const [events, setEvents] = useState<FailoverEvent[]>([]);
   const supabase = createClient();
 
-  // Initial fetch — last 20 events
+  // Fetch events since sessionStartTime
   useEffect(() => {
-    supabase
+    let query = supabase
       .from("failover_events")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
-        if (data) setEvents(data as FailoverEvent[]);
-      });
-  }, []);
+      .limit(20);
+
+    if (sessionStartTime) {
+      const isoTime = new Date(sessionStartTime).toISOString();
+      query = query.gte("created_at", isoTime);
+    }
+
+    query.then(({ data }) => {
+      if (data) setEvents(data as FailoverEvent[]);
+      else setEvents([]);
+    });
+  }, [sessionStartTime]);
 
   // Realtime subscription — new events appear instantly
   useEffect(() => {

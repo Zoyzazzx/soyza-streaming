@@ -37,6 +37,9 @@ export default function ViewerPage() {
   const [streamTitle, setStreamTitle] = useState<string>("Live Stream Broadcast");
   const [userRole, setUserRole] = useState<string>("viewer");
   
+  // Track viewer stream duration
+  const [streamDuration, setStreamDuration] = useState<number>(0);
+
   // Private modal & credentials
   const [isPrivateModalOpen, setIsPrivateModalOpen] = useState(false);
   const [streamId, setStreamId] = useState("");
@@ -70,6 +73,10 @@ export default function ViewerPage() {
   };
 
   useEffect(() => {
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
     async function fetchStatusAndAuth() {
       try {
         const res = await fetch("/api/stream-status");
@@ -87,6 +94,27 @@ export default function ViewerPage() {
     const interval = setInterval(fetchStatusAndAuth, 2500);
     return () => clearInterval(interval);
   }, []);
+
+  // Duration timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (streamStatus.streaming) {
+      interval = setInterval(() => {
+        setStreamDuration((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setStreamDuration(0);
+    }
+    return () => clearInterval(interval);
+  }, [streamStatus.streaming]);
+
+  const formatDuration = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -123,7 +151,7 @@ export default function ViewerPage() {
   if (isAuthenticated === null) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -132,109 +160,99 @@ export default function ViewerPage() {
   const isLive = streamStatus.streaming;
 
   return (
-    <div className="min-h-screen bg-gray-50/60 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
-      {/* ── Minimalist Top Navigation ── */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="shrink-0">
-              <img 
-                src="/logo.png" 
-                alt="ZoyzaXR Logo" 
-                className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100" 
-              />
-            </Link>
-            <div>
-              <span className="font-bold text-gray-900 text-base tracking-tight block">ZoyzaXR</span>
-              <span className="text-gray-400 text-xs">Live Viewer Portal</span>
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans selection:bg-purple-600 selection:text-white w-full">
+      {/* ── Top Header Navigation (Matching Studio Header Exactly) ── */}
+      <header className="h-16 bg-white border-b border-gray-200 px-6 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 z-50 shadow-xs">
+        <div className="flex items-center gap-4">
+          <Link href="/" className="shrink-0 flex items-center gap-3 group">
+            <img 
+              src="/logo.png" 
+              alt="ZoyzaXR Logo" 
+              className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100 group-hover:scale-105 transition-transform" 
+            />
+            <div className="hidden sm:block">
+              <span className="font-extrabold text-gray-900 text-base tracking-tight block">ZoyzaXR</span>
+              <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Live Viewer</span>
             </div>
-          </div>
+          </Link>
 
-          <div className="flex items-center gap-3">
-            <Link 
-              href="/recordings" 
-              className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-xl transition-all border border-gray-200/80 bg-white shadow-xs"
-            >
-              <Video className="w-3.5 h-3.5" />
-              <span>Recordings</span>
-            </Link>
+          <div className="w-px h-6 bg-gray-200 hidden sm:block"></div>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">
+              {isLive ? streamTitle : "No Active Stream"}
+            </h1>
             
-            {/* Live Indicator Pill */}
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold transition-all shadow-xs ${
-              isLive
-                ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-emerald-500/10"
-                : streamStatus.online
-                ? "bg-amber-50 border-amber-200 text-amber-700"
-                : "bg-gray-100/80 border-gray-200 text-gray-500"
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${
-                isLive ? "bg-emerald-500 animate-ping" :
-                streamStatus.online ? "bg-amber-500" : "bg-gray-400"
-              }`} />
-              <span>{isLive ? "LIVE" : streamStatus.online ? "IDLE" : "OFFLINE"}</span>
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+            {/* Status pills matching studio */}
+            {isLive && (
+              isPublicStream ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                  <Globe className="w-3.5 h-3.5" /> Public
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                  <Lock className="w-3.5 h-3.5" /> Private
+                </span>
+              )
+            )}
           </div>
         </div>
-      </nav>
+
+        {/* Right Header Controls: Status, Duration, Private Connect, HLS link & Logout */}
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2 text-xs text-gray-500 mr-1">
+            <span>Status: <b className={isLive ? "text-red-600 font-bold animate-pulse" : "text-gray-700"}>{isLive ? "LIVE ON AIR" : "STANDBY"}</b></span>
+            <span>•</span>
+            <span>Duration: <b className="font-mono text-gray-900">{formatDuration(streamDuration)}</b></span>
+          </div>
+
+          <button
+            onClick={() => setIsPrivateModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 border border-gray-200 text-xs font-semibold text-gray-700 transition-all shadow-xs"
+            title="Connect with Private Stream Key"
+          >
+            <Lock className="w-3.5 h-3.5 text-purple-600" />
+            <span className="hidden sm:inline">Connect Private</span>
+          </button>
+
+          {isLive && (
+            <a
+              href={HLS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-purple-700 hover:text-purple-800 transition-colors bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl hidden sm:flex items-center gap-1"
+            >
+              Direct HLS ↗
+            </a>
+          )}
+
+          <Link
+            href="/recordings"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 border border-gray-200 text-xs font-semibold text-gray-700 transition-all shadow-xs"
+          >
+            <Video className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Recordings</span>
+          </Link>
+
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+            title="Logout"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Logout</span>
+          </button>
+        </div>
+      </header>
 
       {/* ── Main Content Stage ── */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 flex flex-col justify-center">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-8 flex flex-col justify-center">
         
-        {/* Stream Card */}
-        <div className="bg-white border border-gray-200/90 rounded-3xl shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col transition-all">
-          
-          {/* Header Bar */}
-          <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3 bg-gray-50/40">
-            <div className="flex items-center gap-3">
-              <div className={`w-2.5 h-2.5 rounded-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-gray-300'}`} />
-              <h2 className="text-sm font-bold text-gray-900 tracking-tight">
-                {isLive ? streamTitle : "No Active Public Stream"}
-              </h2>
-              {isLive && (
-                isPublicStream ? (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Public
-                  </span>
-                ) : (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                    Private
-                  </span>
-                )
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsPrivateModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200/80 text-gray-700 font-semibold text-xs transition-all border border-gray-200"
-              >
-                <Lock className="w-3.5 h-3.5 text-gray-500" />
-                <span>Connect Private Stream</span>
-              </button>
-
-              {isLive && (
-                <a
-                  href={HLS_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl"
-                >
-                  Direct HLS ↗
-                </a>
-              )}
-            </div>
-          </div>
+        {/* Stream Video Player Card */}
+        <div className="bg-white border border-gray-200 rounded-3xl shadow-xl overflow-hidden flex flex-col transition-all">
           
           {/* Player / Standby Area */}
-          <div className="bg-black relative min-h-[500px] flex items-center justify-center overflow-hidden">
+          <div className="bg-black relative aspect-video flex items-center justify-center overflow-hidden">
              
              {/* SCENARIO 1: Live stream is currently broadcasting and authenticated */}
              {isLive && isAuthenticated ? (
@@ -243,7 +261,7 @@ export default function ViewerPage() {
                 /* SCENARIO 2: Private stream is live but needs unlock */
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/95 z-20 px-4">
                   <div className="max-w-md w-full bg-white/10 backdrop-blur-xl border border-white/20 p-8 rounded-3xl shadow-2xl text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center mb-5 mx-auto">
+                    <div className="w-16 h-16 rounded-2xl bg-purple-500/20 border border-purple-500/30 text-purple-400 flex items-center justify-center mb-5 mx-auto">
                       <Lock className="w-8 h-8" />
                     </div>
                     <h3 className="text-white font-bold text-2xl tracking-tight mb-2">Private Broadcast Live</h3>
@@ -253,7 +271,7 @@ export default function ViewerPage() {
                     
                     <button
                       onClick={() => setIsPrivateModalOpen(true)}
-                      className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs py-3.5 px-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+                      className="w-full bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white font-bold text-xs py-3.5 px-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
                     >
                       <Key className="w-4 h-4" />
                       Enter Credentials
@@ -266,11 +284,11 @@ export default function ViewerPage() {
                   
                   {/* Radar Pulse animation */}
                   <div className="relative flex items-center justify-center mb-6">
-                    <div className="w-32 h-32 rounded-full border border-indigo-500/20 animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite] absolute" />
+                    <div className="w-32 h-32 rounded-full border border-purple-500/20 animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite] absolute" />
                     <div className="w-24 h-24 rounded-full border border-violet-500/30 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] absolute" />
                     
-                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500/20 to-violet-600/20 border border-white/10 backdrop-blur-md flex items-center justify-center shadow-2xl relative z-10 animate-[bounce_4s_infinite]">
-                      <Tv className="w-9 h-9 text-indigo-400" />
+                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500/20 to-violet-600/20 border border-white/10 backdrop-blur-md flex items-center justify-center shadow-2xl relative z-10 animate-[bounce_4s_infinite]">
+                      <Tv className="w-9 h-9 text-purple-400" />
                     </div>
                   </div>
 
@@ -284,15 +302,25 @@ export default function ViewerPage() {
                   </div>
 
                   {/* Private stream invitation pill */}
-                  <div className="mt-8">
+                  <div className="mt-8 flex flex-col items-center gap-3">
                     <button
                       onClick={() => setIsPrivateModalOpen(true)}
                       className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-semibold backdrop-blur-md transition-all shadow-lg hover:scale-105 active:scale-95"
                     >
-                      <Lock className="w-3.5 h-3.5 text-indigo-400" />
+                      <Lock className="w-3.5 h-3.5 text-purple-400" />
                       <span>Have a Private Stream Key? Click to Connect</span>
                       <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
                     </button>
+
+                    {userRole === "streamer" && (
+                      <Link
+                        href="/"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-400/30 text-purple-200 hover:text-white text-xs font-semibold backdrop-blur-md transition-all shadow-md hover:scale-105 active:scale-95"
+                      >
+                        <Home className="w-3.5 h-3.5" />
+                        <span>Return to Studio Home</span>
+                      </Link>
+                    )}
                   </div>
                 </div>
              )}
@@ -311,7 +339,7 @@ export default function ViewerPage() {
           <div className="bg-white border border-gray-200 rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shadow-xs">
+                <div className="w-9 h-9 rounded-xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center shadow-xs">
                   <Lock className="w-4 h-4" />
                 </div>
                 <div>
@@ -342,7 +370,7 @@ export default function ViewerPage() {
                     type="text"
                     value={streamId}
                     onChange={(e) => setStreamId(e.target.value)}
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 shadow-xs"
                     placeholder="e.g. 849201"
                     required
                   />
@@ -357,7 +385,7 @@ export default function ViewerPage() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-xs"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 shadow-xs"
                     placeholder="••••••••"
                     required
                   />
@@ -375,7 +403,7 @@ export default function ViewerPage() {
                 <button
                   type="submit"
                   disabled={isAuthenticating}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
                 >
                   {isAuthenticating && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   {isAuthenticating ? "Verifying..." : "Unlock & Watch"}

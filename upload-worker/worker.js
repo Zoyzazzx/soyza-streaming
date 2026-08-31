@@ -217,6 +217,10 @@ function start() {
   app.use(cors());
   app.use(express.json());
 
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", service: "upload-worker" });
+  });
+
   app.post("/api/stitch", async (req, res) => {
     log("🧵 Stitch command received. Checking for segments...");
     try {

@@ -32,6 +32,7 @@ import {
   VideoOff,
   MicOff,
   Shield,
+  Server,
   Activity,
   Layers,
   AlertTriangle,
@@ -41,7 +42,9 @@ import {
   User,
   Tv,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Cpu,
+  UploadCloud
 } from "lucide-react";
 import NetworkStatus from "@/components/NetworkStatus";
 import FailoverLog from "@/components/FailoverLog";
@@ -57,6 +60,21 @@ interface Gateway {
   InterfaceAlias: string;
 }
 
+interface ServiceHealth {
+  online: boolean;
+  message?: string;
+  streaming?: boolean;
+}
+
+interface SystemHealthState {
+  allHealthy: boolean;
+  services: {
+    mediamtx: ServiceHealth;
+    worker: ServiceHealth;
+    monitor: ServiceHealth;
+  };
+}
+
 export default function BroadcastStudio() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -68,13 +86,23 @@ export default function BroadcastStudio() {
   const [error, setError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
 
+  // Backend system health tracking
+  const [systemHealth, setSystemHealth] = useState<SystemHealthState>({
+    allHealthy: false,
+    services: {
+      mediamtx: { online: false, message: "Checking..." },
+      worker: { online: false, message: "Checking..." },
+      monitor: { online: false, message: "Checking..." },
+    },
+  });
+
   // User auth state
   const [userEmail, setUserEmail] = useState<string>("admin@zoyzair.tv");
   const [userRole, setUserRole] = useState<string>("Streamer");
 
-  // Progressive Wizard States
+  // Progressive Wizard States (5 Steps: Identity, Privacy, Failover, Archival, Hardware)
   const [isWizardComplete, setIsWizardComplete] = useState(false);
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
   // Stream Configuration
   const [streamName, setStreamName] = useState("My Live Broadcast");
@@ -82,6 +110,7 @@ export default function BroadcastStudio() {
   const [streamId, setStreamId] = useState("");
   const [streamPassword, setStreamPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showSidebarPassword, setShowSidebarPassword] = useState(false);
   const [recordEnabled, setRecordEnabled] = useState(true);
 
   // Hardware & Devices
@@ -92,6 +121,49 @@ export default function BroadcastStudio() {
   const [resolution, setResolution] = useState("720p");
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(false);
+
+  // Hydrate persistent broadcast session from localStorage on initial mount
+  useEffect(() => {
+    try {
+      const savedSession = localStorage.getItem("zoyzair_active_session");
+      if (savedSession) {
+        const parsed = JSON.parse(savedSession);
+        if (parsed.isWizardComplete) {
+          setIsWizardComplete(true);
+          if (parsed.streamName) setStreamName(parsed.streamName);
+          if (parsed.isPublic !== undefined) setIsPublic(parsed.isPublic);
+          if (parsed.streamId) setStreamId(parsed.streamId);
+          if (parsed.streamPassword) setStreamPassword(parsed.streamPassword);
+          if (parsed.recordEnabled !== undefined) setRecordEnabled(parsed.recordEnabled);
+          if (parsed.sessionCreatedTime) setSessionCreatedTime(parsed.sessionCreatedTime);
+          if (parsed.resolution) setResolution(parsed.resolution);
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Save session state to localStorage
+  const saveSessionToStorage = (overrides?: any) => {
+    try {
+      const stateToSave = {
+        isWizardComplete: true,
+        streamName: overrides?.streamName ?? streamName,
+        isPublic: overrides?.isPublic ?? isPublic,
+        streamId: overrides?.streamId ?? streamId,
+        streamPassword: overrides?.streamPassword ?? streamPassword,
+        recordEnabled: overrides?.recordEnabled ?? recordEnabled,
+        sessionCreatedTime: overrides?.sessionCreatedTime ?? sessionCreatedTime,
+        resolution: overrides?.resolution ?? resolution,
+      };
+      localStorage.setItem("zoyzair_active_session", JSON.stringify(stateToSave));
+    } catch {}
+  };
+
+  const clearSessionStorage = () => {
+    try {
+      localStorage.removeItem("zoyzair_active_session");
+    } catch {}
+  };
 
   // Sidebar collapsible state
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -161,6 +233,24 @@ export default function BroadcastStudio() {
        if (data.gateways) setGateways(data.gateways);
     }).catch(() => {});
   }, [router, supabase]);
+
+  // Periodic system health polling
+  useEffect(() => {
+    async function checkHealth() {
+      try {
+        const res = await fetch("/api/system-health");
+        if (res.ok) {
+          const data = await res.json();
+          setSystemHealth(data);
+        }
+      } catch (err) {
+        console.error("Health check error:", err);
+      }
+    }
+    checkHealth();
+    const interval = setInterval(checkHealth, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Restart camera preview whenever selected camera/mic/resolution changes
   const startCamera = async (camId = selectedCamera, micId = selectedMic, res = resolution) => {
@@ -238,10 +328,45 @@ export default function BroadcastStudio() {
     }
   };
 
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
   const handleFinishWizard = async () => {
     await syncStreamMetadata();
-    setSessionCreatedTime(Date.now());
+    const startTime = Date.now();
+    setSessionCreatedTime(startTime);
+    saveSessionToStorage({ sessionCreatedTime: startTime });
     setIsWizardComplete(true);
+  };
+
+  const handleRestartWizard = () => {
+    clearSessionStorage();
+    setIsWizardComplete(false);
+    setWizardStep(1);
+  };
+
+  const handleDeleteStream = async () => {
+    try {
+      // If actively broadcasting, stop it
+      if (isBroadcasting) {
+        await stopBroadcast();
+      }
+      stopCamera();
+
+      // Clear on server
+      await fetch("/api/stream-auth", { method: "DELETE" });
+
+      // Clear local state and storage
+      clearSessionStorage();
+      setStreamName("My Live Broadcast");
+      setIsPublic(false);
+      setStreamId("");
+      setStreamPassword("");
+      setIsWizardComplete(false);
+      setWizardStep(1);
+      setIsDeleteModalOpen(false);
+    } catch (err) {
+      console.error("Failed to delete stream:", err);
+    }
   };
 
   const generateRandomCredentials = () => {
@@ -290,11 +415,25 @@ export default function BroadcastStudio() {
   };
 
   const startBroadcast = async () => {
+    // 1. Verify all 3 backend infrastructure components are online
+    if (!systemHealth.services.mediamtx.online) {
+      setError("Cannot initialize stream: MediaMTX streaming server is offline or unreachable on port 9997.");
+      return;
+    }
+    if (!systemHealth.services.worker.online) {
+      setError("Cannot initialize stream: Upload Worker service is offline or unreachable on port 4000.");
+      return;
+    }
+    if (!systemHealth.services.monitor.online) {
+      setError("Cannot initialize stream: Connectivity Monitor is offline (no recent heartbeat detected in database).");
+      return;
+    }
+
     if (!stream) {
       await startCamera();
     }
     if (!primaryNetwork || !backupNetwork) {
-      setError("Failover configuration is incomplete. Please select primary and backup connections in Settings.");
+      setError("Failover configuration is incomplete. Please select primary and backup connections in Failover Settings.");
       setIsConfigModalOpen(true);
       return;
     }
@@ -472,60 +611,94 @@ export default function BroadcastStudio() {
         
         {/* Top Branding Section */}
         <div>
-          <div className="h-16 px-4 flex items-center justify-between border-b border-gray-100">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <img 
-                src="/logo.png" 
-                alt="ZoyzaXR Logo" 
-                className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100 shrink-0" 
-              />
-              {isSidebarOpen && (
-                <div className="truncate animate-in fade-in duration-200">
-                  <span className="font-extrabold text-gray-900 text-base tracking-tight block">ZoyzaXR</span>
-                  <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Broadcast Studio</span>
+          <div className={`h-16 flex items-center border-b border-gray-100 transition-all ${
+            isSidebarOpen ? "px-4 justify-between" : "px-2 justify-center flex-col gap-1 py-1"
+          }`}>
+            {isSidebarOpen ? (
+              <>
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <img 
+                    src="/logo.png" 
+                    alt="ZoyzaXR Logo" 
+                    className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100 shrink-0" 
+                  />
+                  <div className="truncate animate-in fade-in duration-200">
+                    <span className="font-extrabold text-gray-900 text-base tracking-tight block">ZoyzaXR</span>
+                    <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Broadcast Studio</span>
+                  </div>
                 </div>
-              )}
-            </div>
 
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
-              title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-            >
-              {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
-            </button>
+                <button
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors shrink-0"
+                  title="Collapse Sidebar"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center justify-center gap-1.5">
+                <img 
+                  src="/logo.png" 
+                  alt="ZoyzaXR Logo" 
+                  className="w-8 h-8 rounded-xl shadow-md object-cover border border-purple-100 shrink-0" 
+                />
+                <button
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+                  title="Expand Sidebar"
+                >
+                  <PanelLeft className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Navigation Links */}
           <div className="p-3 space-y-1">
             <Link
               href="/"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors ${
+                !isSidebarOpen ? "justify-center px-0" : ""
+              }`}
+              title="Home"
             >
               <Home className="w-4 h-4 shrink-0" />
-              {isSidebarOpen && <span>Command Hub</span>}
+              {isSidebarOpen && <span>Home</span>}
             </Link>
 
-            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs bg-purple-50 text-purple-700 border border-purple-100">
+            <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs bg-purple-50 text-purple-700 border border-purple-100 ${
+              !isSidebarOpen ? "justify-center px-0" : ""
+            }`} title="Broadcast Stage">
               <Radio className="w-4 h-4 shrink-0 text-purple-600" />
               {isSidebarOpen && <span>Broadcast Stage</span>}
             </div>
 
-            <Link
+            <a
               href="/viewer"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors ${
+                !isSidebarOpen ? "justify-center px-0" : ""
+              }`}
+              title="Live Viewer (Opens in new tab)"
             >
               <Tv className="w-4 h-4 shrink-0" />
-              {isSidebarOpen && <span>Live Viewer</span>}
-            </Link>
+              {isSidebarOpen && <span>Live Viewer ↗</span>}
+            </a>
 
-            <Link
+            <a
               href="/recordings"
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors ${
+                !isSidebarOpen ? "justify-center px-0" : ""
+              }`}
+              title="Recordings Library (Opens in new tab)"
             >
               <Video className="w-4 h-4 shrink-0" />
-              {isSidebarOpen && <span>Recordings Library</span>}
-            </Link>
+              {isSidebarOpen && <span>Recordings Library ↗</span>}
+            </a>
           </div>
 
           {/* Sidebar Stream Controls & Parameters */}
@@ -533,12 +706,21 @@ export default function BroadcastStudio() {
             <div className="px-4 py-3 space-y-4 border-t border-gray-100 animate-in fade-in duration-300">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Stream Controls</span>
-                <button
-                  onClick={() => setIsWizardComplete(false)}
-                  className="text-[10px] text-purple-600 hover:underline font-bold"
-                >
-                  Restart Wizard
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    className="text-[10px] text-red-600 hover:underline font-bold"
+                  >
+                    Delete Stream
+                  </button>
+                  <span className="text-gray-300">•</span>
+                  <button
+                    onClick={handleRestartWizard}
+                    className="text-[10px] text-purple-600 hover:underline font-bold"
+                  >
+                    Edit
+                  </button>
+                </div>
               </div>
 
               {/* Title Input */}
@@ -587,13 +769,27 @@ export default function BroadcastStudio() {
               {/* Private credentials snippet */}
               {!isPublic && (
                 <div className="p-2.5 bg-gray-50 rounded-xl border border-gray-200 space-y-1 text-xs">
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span className="text-gray-400">ID:</span>
                     <span className="font-mono font-bold text-gray-900">{streamId || "Not set"}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span className="text-gray-400">Pass:</span>
-                    <span className="font-mono font-bold text-gray-900">{streamPassword || "Not set"}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-gray-900">
+                        {showSidebarPassword ? (streamPassword || "Not set") : (streamPassword ? "••••••••" : "Not set")}
+                      </span>
+                      {streamPassword && (
+                        <button
+                          type="button"
+                          onClick={() => setShowSidebarPassword(!showSidebarPassword)}
+                          className="text-gray-400 hover:text-gray-700 p-0.5 rounded transition-colors"
+                          title={showSidebarPassword ? "Hide Password" : "Show Password"}
+                        >
+                          {showSidebarPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -731,7 +927,50 @@ export default function BroadcastStudio() {
               )}
             </div>
 
+            {/* Middle / Right: 3 Backend Infrastructure Component Health Indicators */}
             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-gray-50 border border-gray-200 shadow-2xs">
+                {/* 1. MediaMTX Server */}
+                <div 
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white transition-colors cursor-help"
+                  title={`MediaMTX Streaming Server: ${systemHealth.services.mediamtx.message}`}
+                >
+                  <Server className={`w-3.5 h-3.5 ${systemHealth.services.mediamtx.online ? "text-indigo-600" : "text-red-500"}`} />
+                  <span className="text-[11px] font-bold text-gray-700 hidden xl:inline">MediaMTX</span>
+                  <span className={`w-2 h-2 rounded-full ${
+                    systemHealth.services.mediamtx.online ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]" : "bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.7)]"
+                  }`} />
+                </div>
+
+                <div className="w-px h-3.5 bg-gray-200" />
+
+                {/* 2. Upload Worker */}
+                <div 
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white transition-colors cursor-help"
+                  title={`Upload Worker (Port 4000): ${systemHealth.services.worker.message}`}
+                >
+                  <UploadCloud className={`w-3.5 h-3.5 ${systemHealth.services.worker.online ? "text-cyan-600" : "text-red-500"}`} />
+                  <span className="text-[11px] font-bold text-gray-700 hidden xl:inline">Upload Worker</span>
+                  <span className={`w-2 h-2 rounded-full ${
+                    systemHealth.services.worker.online ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]" : "bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.7)]"
+                  }`} />
+                </div>
+
+                <div className="w-px h-3.5 bg-gray-200" />
+
+                {/* 3. Connectivity Monitor */}
+                <div 
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white transition-colors cursor-help"
+                  title={`Connectivity & Failover Monitor: ${systemHealth.services.monitor.message}`}
+                >
+                  <Activity className={`w-3.5 h-3.5 ${systemHealth.services.monitor.online ? "text-purple-600" : "text-red-500"}`} />
+                  <span className="text-[11px] font-bold text-gray-700 hidden xl:inline">Monitor</span>
+                  <span className={`w-2 h-2 rounded-full ${
+                    systemHealth.services.monitor.online ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]" : "bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.7)]"
+                  }`} />
+                </div>
+              </div>
+
               <div className="flex items-center gap-2 text-xs text-gray-500 mr-2">
                 <span>Status: <b className={isBroadcasting ? "text-red-600 font-bold" : "text-gray-700"}>{isBroadcasting ? "LIVE" : "STANDBY"}</b></span>
                 <span>•</span>
@@ -748,6 +987,15 @@ export default function BroadcastStudio() {
                   <span>{copiedKey ? "Copied" : "Copy Keys"}</span>
                 </button>
               )}
+
+              {/* Delete / Discard Stream Action */}
+              <button
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-xs font-semibold text-red-700 transition-all shadow-xs"
+                title="Delete created stream"
+              >
+                <span>Delete Stream</span>
+              </button>
 
               {/* Dedicated Red Accent ONLY when on air or to end stream */}
               {isBroadcasting ? (
@@ -804,18 +1052,19 @@ export default function BroadcastStudio() {
                 {/* Top Progress Tracker */}
                 <div className="mb-8">
                   <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
-                    <span>Step {wizardStep} of 4</span>
+                    <span>Step {wizardStep} of 5</span>
                     <span className="text-purple-600 font-extrabold">
                       {wizardStep === 1 && "Stream Identity"}
                       {wizardStep === 2 && "Privacy & Access"}
-                      {wizardStep === 3 && "Recording Archival"}
-                      {wizardStep === 4 && "Hardware & Preview"}
+                      {wizardStep === 3 && "Failover Network Config"}
+                      {wizardStep === 4 && "Recording Archival"}
+                      {wizardStep === 5 && "Hardware & Preview"}
                     </span>
                   </div>
                   <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden flex">
                     <div 
                       className="bg-gradient-to-r from-purple-600 to-violet-500 h-full transition-all duration-500 rounded-full"
-                      style={{ width: `${(wizardStep / 4) * 100}%` }}
+                      style={{ width: `${(wizardStep / 5) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -950,8 +1199,104 @@ export default function BroadcastStudio() {
                   </div>
                 )}
 
-                {/* Step 3: Recording Options */}
+                {/* Step 3: Mandatory Failover Network Configuration */}
                 {wizardStep === 3 && (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    <div className="space-y-2">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center mb-2 shadow-xs">
+                        <Sliders className="w-6 h-6" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Network Failover Setup</h2>
+                      <p className="text-sm text-gray-500">
+                        Configure redundant primary and backup network routes. This is mandatory for seamless failover protection.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-4">
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-gray-600 mb-1.5 block">Failover Routing Mode</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setMode("interface")}
+                            className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                              mode === "interface" ? "bg-purple-50 border-purple-300 text-purple-700 shadow-xs" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                            }`}
+                          >
+                            Interface Priority
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMode("gateway")}
+                            className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                              mode === "gateway" ? "bg-purple-50 border-purple-300 text-purple-700 shadow-xs" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                            }`}
+                          >
+                            Gateway NextHop
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-600 block mb-1">
+                            Primary Connection (High Speed) <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={primaryNetwork}
+                            onChange={(e) => setPrimaryNetwork(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-900 text-xs focus:outline-none focus:border-purple-500 shadow-xs"
+                          >
+                            <option value="">Select Primary Connection...</option>
+                            {mode === "interface" ? (
+                              adapters.map(a => <option key={a.Name} value={a.Name}>{a.Name} ({a.Status})</option>)
+                            ) : (
+                              gateways.map(g => <option key={g.NextHop} value={g.NextHop}>{g.NextHop} ({g.InterfaceAlias})</option>)
+                            )}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-600 block mb-1">
+                            Backup Connection (5G / 4G / Wi-Fi) <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={backupNetwork}
+                            onChange={(e) => setBackupNetwork(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-900 text-xs focus:outline-none focus:border-purple-500 shadow-xs"
+                          >
+                            <option value="">Select Backup Connection...</option>
+                            {mode === "interface" ? (
+                              adapters.map(a => <option key={a.Name} value={a.Name}>{a.Name} ({a.Status})</option>)
+                            ) : (
+                              gateways.map(g => <option key={g.NextHop} value={g.NextHop}>{g.NextHop} ({g.InterfaceAlias})</option>)
+                            )}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Critical Warning if using identical adapter for testing */}
+                      {primaryNetwork && backupNetwork && primaryNetwork === backupNetwork && (
+                        <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900 animate-in fade-in duration-200">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <span className="font-bold text-amber-800 block">Single Adapter Test Mode (Critical Warning)</span>
+                            <p className="text-amber-700 leading-relaxed">
+                              Primary and Backup are set to the same target (<span className="font-mono font-bold">{primaryNetwork}</span>). Failover metrics will adjust on this adapter, but physical hardware redundancy is not active.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl text-xs text-purple-900 leading-relaxed">
+                        💡 <b>Autonomous failover:</b> When primary connection latency &gt; 150ms or packet loss &gt; 20%, the system will instantly reroute your live stream to the backup connection.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 4: Recording Options */}
+                {wizardStep === 4 && (
                   <div className="space-y-6 animate-in fade-in duration-300">
                     <div className="space-y-2">
                       <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center mb-2 shadow-xs">
@@ -1003,8 +1348,8 @@ export default function BroadcastStudio() {
                   </div>
                 )}
 
-                {/* Step 4: Hardware & Live Preview */}
-                {wizardStep === 4 && (
+                {/* Step 5: Hardware & Live Preview */}
+                {wizardStep === 5 && (
                   <div className="space-y-6 animate-in fade-in duration-300">
                     <div className="space-y-2">
                       <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 text-purple-600 flex items-center justify-center mb-2 shadow-xs">
@@ -1107,10 +1452,10 @@ export default function BroadcastStudio() {
                     </button>
                   ) : <div />}
 
-                  {wizardStep < 4 ? (
+                  {wizardStep < 5 ? (
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         if (wizardStep === 1 && !streamName.trim()) {
                           setError("Please specify a stream name.");
                           return;
@@ -1118,6 +1463,18 @@ export default function BroadcastStudio() {
                         if (wizardStep === 2 && !isPublic && (!streamId.trim() || !streamPassword.trim())) {
                           setError("Please enter or randomize a Stream ID and Password for the private stream.");
                           return;
+                        }
+                        if (wizardStep === 3) {
+                          if (!primaryNetwork || !backupNetwork) {
+                            setError("Failover configuration is mandatory. Please select both Primary and Backup network targets.");
+                            return;
+                          }
+                          // Automatically save network failover configuration
+                          await fetch("/api/settings", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ mode, primary: primaryNetwork, backup: backupNetwork })
+                          });
                         }
                         setError(null);
                         setWizardStep((wizardStep + 1) as any);
@@ -1210,15 +1567,11 @@ export default function BroadcastStudio() {
                   </div>
                 </div>
 
-                {/* Right Side: Real-time Network Status Widget (1 col) */}
-                <div className="w-full">
+                {/* Right Side: Network Status & Failover Log Stacked for Maximum Visibility */}
+                <div className="w-full flex flex-col gap-6">
                   <NetworkStatus />
+                  <FailoverLog sessionStartTime={sessionCreatedTime} />
                 </div>
-              </div>
-
-              {/* Bottom Row: Unique Failover Log for this active stream session */}
-              <div className="w-full">
-                <FailoverLog sessionStartTime={sessionCreatedTime} />
               </div>
             </div>
           )}
@@ -1436,6 +1789,49 @@ export default function BroadcastStudio() {
               >
                 {configSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                 {configSaving ? "Saving..." : "Apply Failover Settings"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete / Discard Stream Confirmation Modal ── */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-gray-200 rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
+              <div className="w-10 h-10 rounded-2xl bg-red-50 border border-red-200 text-red-600 flex items-center justify-center shadow-xs">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">Delete Live Stream?</h3>
+                <p className="text-xs text-gray-500">This will terminate the stream and clear credentials.</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-red-50/70 border border-red-200 text-xs text-red-800 leading-relaxed space-y-2">
+              <p>
+                <b>Warning:</b> Deleting this stream will immediately end the broadcast feed, reset stream settings, and return to the step-by-step setup wizard.
+              </p>
+              <p>
+                Viewers will no longer be able to watch or access this stream.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteStream}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-md active:scale-95"
+              >
+                Yes, Delete Stream
               </button>
             </div>
           </div>

@@ -93,6 +93,7 @@ const InteractiveNeuralVortex = ({ children, colorTheme = "blue" }: InteractiveN
         purpleVortex += vec3(0.35, 0.05, 0.6) * sin(2.0 * u_scroll_progress + 1.5);
         
         vec3 vortexColor = mix(blueVortex, purpleVortex, u_theme);
+        vec3 baseColor = vec3(0.04, 0.05, 0.09);
         
         // mix base color and vortex color based on noise
         color = mix(baseColor, vortexColor, noise * (0.13 + 0.03 * u_theme));

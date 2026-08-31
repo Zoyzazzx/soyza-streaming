@@ -60,7 +60,7 @@ export default function HubPage() {
             />
             <div>
               <span className="font-bold text-gray-900 text-lg tracking-tight block">ZoyzaXR</span>
-              <span className="text-gray-500 text-xs">Command Hub</span>
+              <span className="text-gray-500 text-xs">Home</span>
             </div>
           </div>
 
@@ -109,10 +109,6 @@ export default function HubPage() {
 
           {/* Card 2: Start Stream */}
           <Link href="/broadcast" className="group relative bg-white border border-gray-200 rounded-3xl p-8 shadow-sm hover:shadow-xl hover:border-blue-200 transition-all duration-300 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300 flex flex-col items-center text-center">
-            <div className="absolute top-4 right-4 bg-red-100 text-red-600 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1.5 uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
-              Live
-            </div>
             <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shadow-sm">
               <Radio className="w-8 h-8" />
             </div>

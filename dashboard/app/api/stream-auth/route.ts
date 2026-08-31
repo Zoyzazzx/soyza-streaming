@@ -142,3 +142,34 @@ export async function GET() {
     title: streamMeta.title,
   });
 }
+
+// DELETE: Delete / Discard the active stream configuration
+export async function DELETE() {
+  try {
+    streamMeta = {
+      streamId: "",
+      password: "",
+      isPublic: false,
+      title: "Live Stream Broadcast",
+      recordEnabled: true,
+    };
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    try {
+      await supabase
+        .from("stream_credentials")
+        .upsert({
+          id: 1,
+          stream_id: "",
+          password: "",
+          updated_at: new Date().toISOString()
+        });
+    } catch (e) {
+      console.warn("DB credentials delete notice:", e);
+    }
+
+    return NextResponse.json({ success: true, message: "Stream deleted and reset." });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}

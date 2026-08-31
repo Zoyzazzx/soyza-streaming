@@ -689,7 +689,15 @@ class ServicePanel(tk.Frame):
             return
         self.log("Stopping...", "system")
         try:
+            # Tell the process to stop
             self.process.terminate()
+            
+            # If this service runs on a specific port (like Next.js on 3000),
+            # forcefully kill anything on that port to ensure child processes die.
+            kill_port = self.svc_def.get("kill_port")
+            if kill_port:
+                kill_port_processes(kill_port)
+                
             threading.Thread(target=self._force_kill, daemon=True).start()
         except Exception as e:
             self.log(f"Stop error: {e}", "error")

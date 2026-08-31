@@ -112,6 +112,7 @@ export default function BroadcastStudio() {
   const [showPassword, setShowPassword] = useState(false);
   const [showSidebarPassword, setShowSidebarPassword] = useState(false);
   const [recordEnabled, setRecordEnabled] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Hardware & Devices
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
@@ -336,6 +337,7 @@ export default function BroadcastStudio() {
     setSessionCreatedTime(startTime);
     saveSessionToStorage({ sessionCreatedTime: startTime });
     setIsWizardComplete(true);
+    setHasUnsavedChanges(false);
   };
 
   const handleRestartWizard = () => {
@@ -393,7 +395,7 @@ export default function BroadcastStudio() {
 
   const confirmMakePublic = async () => {
     setIsPublic(true);
-    await syncStreamMetadata({ isPublic: true });
+    setHasUnsavedChanges(true);
     setPrivacyWarningModal({ target: "public", isOpen: false });
   };
 
@@ -401,11 +403,7 @@ export default function BroadcastStudio() {
     setIsPublic(false);
     setStreamId(pendingPrivateId);
     setStreamPassword(pendingPrivatePassword);
-    await syncStreamMetadata({
-      isPublic: false,
-      streamId: pendingPrivateId,
-      password: pendingPrivatePassword,
-    });
+    setHasUnsavedChanges(true);
     setPrivacyWarningModal({ target: "private", isOpen: false });
   };
 
@@ -731,7 +729,7 @@ export default function BroadcastStudio() {
                   value={streamName}
                   onChange={(e) => {
                     setStreamName(e.target.value);
-                    syncStreamMetadata({ title: e.target.value });
+                    setHasUnsavedChanges(true);
                   }}
                   className="w-full px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-900 text-xs focus:outline-none focus:border-purple-500 shadow-xs"
                 />
@@ -826,9 +824,8 @@ export default function BroadcastStudio() {
                 <button
                   type="button"
                   onClick={() => {
-                    const next = !recordEnabled;
-                    setRecordEnabled(next);
-                    syncStreamMetadata({ recordEnabled: next });
+                    setRecordEnabled(!recordEnabled);
+                    setHasUnsavedChanges(true);
                   }}
                   className={`w-full py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-between ${
                     recordEnabled ? "bg-blue-50 border-blue-200 text-blue-700" : "bg-gray-50 border-gray-200 text-gray-500"
@@ -850,6 +847,25 @@ export default function BroadcastStudio() {
               >
                 <Settings className="w-3.5 h-3.5 text-gray-500" />
                 <span>Failover Config</span>
+              </button>
+
+              {/* Save Stream Settings */}
+              <button
+                type="button"
+                disabled={!hasUnsavedChanges}
+                onClick={async () => {
+                  await syncStreamMetadata();
+                  saveSessionToStorage();
+                  setHasUnsavedChanges(false);
+                }}
+                className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm ${
+                  hasUnsavedChanges 
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)] active:scale-95" 
+                    : "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+                }`}
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Save Stream Settings</span>
               </button>
             </div>
           )}
@@ -1516,6 +1532,25 @@ export default function BroadcastStudio() {
                     muted
                     className="w-full h-full object-cover"
                   />
+                  
+                  {/* System Failure Overlay (Prominent Alert) */}
+                  {isBroadcasting && !systemHealth.allHealthy && (
+                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-red-950/85 backdrop-blur-md text-white p-6 text-center animate-in fade-in">
+                      <AlertTriangle className="w-16 h-16 text-red-500 mb-4 animate-bounce" />
+                      <h2 className="text-2xl font-black uppercase tracking-widest mb-2 text-red-100">Critical Infrastructure Warning</h2>
+                      <div className="space-y-1 text-sm font-semibold max-w-lg text-red-200">
+                        {!systemHealth.services.mediamtx.online && (
+                           <p className="bg-red-900/50 p-2 rounded-lg border border-red-500/30">❌ <b>MediaMTX Offline:</b> The streaming server dropped. Your live feed is currently disconnected from viewers!</p>
+                        )}
+                        {!systemHealth.services.worker.online && (
+                           <p className="bg-red-900/50 p-2 rounded-lg border border-red-500/30">⚠️ <b>Upload Worker Offline:</b> The recording archiver stopped responding. Cloud saving may be interrupted.</p>
+                        )}
+                        {!systemHealth.services.monitor.online && (
+                           <p className="bg-red-900/50 p-2 rounded-lg border border-red-500/30">⚠️ <b>Monitor Offline:</b> The failover agent lost heartbeat. Autonomous failover is temporarily disabled.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Overlaid Studio HUD */}
                   <div className="absolute top-4 left-4 flex items-center gap-2">

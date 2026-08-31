@@ -60,6 +60,16 @@ function log(msg) {
   console.log(`[${timestamp()}] ${msg}`);
 }
 
+async function isRecordingEnabled() {
+  try {
+    const res = await fetch("http://localhost:3000/api/stream-auth");
+    const data = await res.json();
+    return data.recordEnabled !== false; // Default to true if missing
+  } catch {
+    return true; // Fail open if dashboard is unreachable
+  }
+}
+
 /**
  * Waits until the file size stops changing for STABLE_WAIT_MS milliseconds.
  * Returns true when stable, false if the file disappears.
@@ -101,6 +111,21 @@ async function uploadFile(filePath) {
   // Guard: skip files already being processed
   if (inProgress.has(filePath)) return;
   inProgress.add(filePath);
+
+  // Guard: check if recording is enabled (only check for segments, not master files)
+  if (!filename.startsWith("master_")) {
+    const recordingEnabled = await isRecordingEnabled();
+    if (!recordingEnabled) {
+      log(`🗑️ Recording disabled. Discarding: ${filename}`);
+      try {
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch (e) {
+        log(`⚠️ Failed to delete ${filename}: ${e.message}`);
+      }
+      inProgress.delete(filePath);
+      return;
+    }
+  }
 
   try {
     log(`📁 New recording detected: ${filename}`);
@@ -179,6 +204,94 @@ async function uploadFile(filePath) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Stitch Logic
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function performStitch() {
+  log("🧵 Checking for segments to stitch...");
+  try {
+    const targetDir = path.join(RECORDINGS_DIR, "live", "stream");
+    if (!fs.existsSync(targetDir)) {
+      log("   No live/stream directory found.");
+      return { success: true, message: "No segments found" };
+    }
+
+    const files = fs.readdirSync(targetDir)
+      .filter(f => f.endsWith(".mp4") && !f.startsWith("master_"))
+      .sort(); // Sorting ensures chronological order
+
+    if (files.length === 0) {
+      log("   No orphaned segments found to stitch.");
+      return { success: true, message: "No segments found" };
+    }
+
+    log(`   Found ${files.length} segments. Preparing FFmpeg concat list...`);
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const listPath = path.join(targetDir, `list_${timestamp}.txt`);
+    const listContent = files.map(f => `file '${f}'`).join("\n");
+    fs.writeFileSync(listPath, listContent);
+
+    const masterFile = `master_${timestamp}.mp4`;
+    const masterPath = path.join(targetDir, masterFile);
+
+    log(`   Running FFmpeg to create ${masterFile}...`);
+    
+    const ffmpegPath = "C:\\Users\\Navindra\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe";
+    
+    return new Promise((resolve, reject) => {
+      exec(`"${ffmpegPath}" -f concat -safe 0 -i "${listPath}" -c copy "${masterPath}"`, async (error, stdout, stderr) => {
+        if (error) {
+          log(`❌ FFmpeg failed: ${error.message}`);
+          return reject(error);
+        }
+        log(`✅ Successfully stitched ${files.length} segments into ${masterFile}`);
+        if (fs.existsSync(listPath)) {
+          fs.unlinkSync(listPath); // Cleanup list.txt
+        }
+
+        // Upload master file now
+        try {
+          await uploadFile(masterPath);
+          log(`✨ Master file uploaded. Cleaning up ${files.length} segment files from local and cloud storage...`);
+
+          // 1. Delete intermediate segments from Supabase Storage & Database
+          const segmentFilenames = files;
+          if (segmentFilenames.length > 0) {
+            const { error: storageDelErr } = await supabase.storage
+              .from(BUCKET)
+              .remove(segmentFilenames);
+            if (storageDelErr) log(`⚠️ Cloud storage cleanup warning: ${storageDelErr.message}`);
+
+            const { error: dbDelErr } = await supabase
+              .from("recordings")
+              .delete()
+              .in("filename", segmentFilenames);
+            if (dbDelErr) log(`⚠️ Database cleanup warning: ${dbDelErr.message}`);
+          }
+
+          // 2. Delete intermediate segments from local disk
+          for (const file of files) {
+            const segPath = path.join(targetDir, file);
+            if (fs.existsSync(segPath)) {
+              fs.unlinkSync(segPath);
+            }
+          }
+          log(`🧹 Successfully cleaned up all intermediate segment files.`);
+          resolve({ success: true, message: "Stitching completed", masterFile });
+        } catch (postStitchErr) {
+          log(`❌ Post-stitch upload/cleanup error: ${postStitchErr.message}`);
+          reject(postStitchErr);
+        }
+      });
+    });
+  } catch (err) {
+    log(`❌ Stitch API error: ${err.message}`);
+    throw err;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Start watching
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -199,18 +312,22 @@ function start() {
     console.log("    Created directory. Waiting for recordings...");
   }
 
-  const watcher = chokidar.watch(RECORDINGS_DIR, {
-    persistent: true,
-    ignoreInitial: false,       // also process files already in the folder
-    awaitWriteFinish: false,    // we do our own stable-size detection
-    depth: 5,
+  // Auto-stitch orphaned segments on boot
+  performStitch().then(() => {
+    log("👀 Initial cleanup done. Watching for new recordings...");
+    const watcher = chokidar.watch(RECORDINGS_DIR, {
+      persistent: true,
+      ignoreInitial: false,       // also process files already in the folder
+      awaitWriteFinish: false,    // we do our own stable-size detection
+      depth: 5,
+    });
+
+    watcher
+      .on("add", (filePath) => uploadFile(filePath))
+      .on("error", (err) => log(`Watcher error: ${err}`));
+  }).catch((err) => {
+    log(`❌ Initial stitch failed: ${err.message}`);
   });
-
-  watcher
-    .on("add", (filePath) => uploadFile(filePath))
-    .on("error", (err) => log(`Watcher error: ${err}`));
-
-  log("👀 Watching for new recordings...");
 
   // Start Express API server
   const app = express();
@@ -222,88 +339,10 @@ function start() {
   });
 
   app.post("/api/stitch", async (req, res) => {
-    log("🧵 Stitch command received. Checking for segments...");
     try {
-      const targetDir = path.join(RECORDINGS_DIR, "live", "stream");
-      if (!fs.existsSync(targetDir)) {
-        log("   No live/stream directory found.");
-        return res.json({ success: true, message: "No segments found" });
-      }
-
-      const files = fs.readdirSync(targetDir)
-        .filter(f => f.endsWith(".mp4") && !f.startsWith("master_"))
-        .sort(); // Sorting ensures chronological order
-
-      if (files.length === 0) {
-        log("   No segments found to stitch.");
-        return res.json({ success: true, message: "No segments found" });
-      }
-
-      log(`   Found ${files.length} segments. Preparing FFmpeg concat list...`);
-      
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const listPath = path.join(targetDir, `list_${timestamp}.txt`);
-      const listContent = files.map(f => `file '${f}'`).join("\n");
-      fs.writeFileSync(listPath, listContent);
-
-      const masterFile = `master_${timestamp}.mp4`;
-      const masterPath = path.join(targetDir, masterFile);
-
-      log(`   Running FFmpeg to create ${masterFile}...`);
-      
-      const ffmpegPath = "C:\\Users\\Navindra\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build\\bin\\ffmpeg.exe";
-      exec(`"${ffmpegPath}" -f concat -safe 0 -i "${listPath}" -c copy "${masterPath}"`, async (error, stdout, stderr) => {
-        if (error) {
-          log(`❌ FFmpeg failed: ${error.message}`);
-          return;
-        }
-        log(`✅ Successfully stitched ${files.length} segments into ${masterFile}`);
-        if (fs.existsSync(listPath)) {
-          fs.unlinkSync(listPath); // Cleanup list.txt
-        }
-
-        // Upload master file now
-        try {
-          await uploadFile(masterPath);
-          log(`✨ Master file uploaded. Cleaning up ${files.length} segment files from local and cloud storage...`);
-
-          // 1. Delete intermediate segments from Supabase Storage & Database
-          const segmentFilenames = files;
-          if (segmentFilenames.length > 0) {
-            // Delete from Supabase Storage
-            const { error: storageDelErr } = await supabase.storage
-              .from(BUCKET)
-              .remove(segmentFilenames);
-            if (storageDelErr) {
-              log(`⚠️ Cloud storage cleanup warning: ${storageDelErr.message}`);
-            }
-
-            // Delete from Database
-            const { error: dbDelErr } = await supabase
-              .from("recordings")
-              .delete()
-              .in("filename", segmentFilenames);
-            if (dbDelErr) {
-              log(`⚠️ Database cleanup warning: ${dbDelErr.message}`);
-            }
-          }
-
-          // 2. Delete intermediate segments from local disk
-          for (const file of files) {
-            const segPath = path.join(targetDir, file);
-            if (fs.existsSync(segPath)) {
-              fs.unlinkSync(segPath);
-            }
-          }
-          log(`🧹 Successfully cleaned up all intermediate segment files.`);
-        } catch (postStitchErr) {
-          log(`❌ Post-stitch upload/cleanup error: ${postStitchErr.message}`);
-        }
-      });
-
-      res.json({ success: true, message: "Stitching started in background", masterFile });
+      const result = await performStitch();
+      res.json(result);
     } catch (err) {
-      log(`❌ Stitch API error: ${err.message}`);
       res.status(500).json({ error: err.message });
     }
   });

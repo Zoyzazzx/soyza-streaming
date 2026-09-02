@@ -98,6 +98,27 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Safely deletes a file on Windows by retrying with backoff if locked (EBUSY).
+ */
+async function deleteFileWithRetry(filePath, maxRetries = 5, delayMs = 500) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      return true;
+    } catch (err) {
+      if (attempt < maxRetries && (err.code === "EBUSY" || err.code === "EPERM")) {
+        await sleep(delayMs * attempt);
+      } else {
+        throw err;
+      }
+    }
+  }
+  return false;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Core upload logic
 // ─────────────────────────────────────────────────────────────────────────────
@@ -116,13 +137,18 @@ async function uploadFile(filePath) {
   if (!filename.startsWith("master_")) {
     const recordingEnabled = await isRecordingEnabled();
     if (!recordingEnabled) {
-      log(`🗑️ Recording disabled. Discarding: ${filename}`);
+      log(`🗑️ Recording disabled. Waiting for ${filename} to finish writing before discard...`);
       try {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        const stable = await waitForFileStable(filePath);
+        if (stable && fs.existsSync(filePath)) {
+          await deleteFileWithRetry(filePath);
+          log(`✅ Discarded: ${filename}`);
+        }
       } catch (e) {
         log(`⚠️ Failed to delete ${filename}: ${e.message}`);
+      } finally {
+        inProgress.delete(filePath);
       }
-      inProgress.delete(filePath);
       return;
     }
   }
@@ -203,11 +229,14 @@ async function uploadFile(filePath) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Stitch Logic
-// ─────────────────────────────────────────────────────────────────────────────
+let isStitching = false;
 
 async function performStitch() {
+  if (isStitching) {
+    log("⏳ Stitching already in progress. Skipping concurrent request.");
+    return { success: false, message: "Stitching already in progress" };
+  }
+  isStitching = true;
   log("🧵 Checking for segments to stitch...");
   try {
     const targetDir = path.join(RECORDINGS_DIR, "live", "stream");
@@ -223,6 +252,22 @@ async function performStitch() {
     if (files.length === 0) {
       log("   No orphaned segments found to stitch.");
       return { success: true, message: "No segments found" };
+    }
+
+    // Check if recording is disabled. If disabled, do not stitch or upload master! Discard segments.
+    const recordingEnabled = await isRecordingEnabled();
+    if (!recordingEnabled) {
+      log(`🗑️ Recording is disabled. Discarding ${files.length} orphaned segments without stitching...`);
+      for (const file of files) {
+        const segPath = path.join(targetDir, file);
+        try {
+          await deleteFileWithRetry(segPath);
+        } catch (e) {
+          log(`⚠️ Failed to delete ${file}: ${e.message}`);
+        }
+      }
+      log(`🧹 Discarded all segments because recording is disabled.`);
+      return { success: true, message: "Segments discarded because recording is disabled" };
     }
 
     log(`   Found ${files.length} segments. Preparing FFmpeg concat list...`);
@@ -294,14 +339,17 @@ async function performStitch() {
             }
           }
           log(`🧹 Successfully cleaned up all intermediate segment files.`);
+          isStitching = false;
           resolve({ success: true, message: "Stitching completed", masterFile });
         } catch (postStitchErr) {
           log(`❌ Post-stitch upload/cleanup error: ${postStitchErr.message}`);
+          isStitching = false;
           reject(postStitchErr);
         }
       });
     });
   } catch (err) {
+    isStitching = false;
     log(`❌ Stitch API error: ${err.message}`);
     throw err;
   }
@@ -339,7 +387,11 @@ function start() {
     });
 
     watcher
-      .on("add", (filePath) => uploadFile(filePath))
+      .on("add", (filePath) => {
+        // master_ files are uploaded directly by performStitch; ignore from watcher to avoid double upload
+        if (path.basename(filePath).startsWith("master_")) return;
+        uploadFile(filePath);
+      })
       .on("error", (err) => log(`Watcher error: ${err}`));
   }).catch((err) => {
     log(`❌ Initial stitch failed: ${err.message}`);

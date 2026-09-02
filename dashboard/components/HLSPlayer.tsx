@@ -38,13 +38,25 @@ export default function HLSPlayer({ url }: HLSPlayerProps) {
   const [isLive, setIsLive] = useState(true);
   const [liveEdge, setLiveEdge] = useState(0);
 
+  const isPlayPendingRef = useRef(false);
+
   const tryPlay = (video: HTMLVideoElement) => {
-    video.play().then(() => {
-      setIsPlaying(true);
-    }).catch(() => {
-      setStatus("paused");
-      setIsPlaying(false);
-    });
+    if (!video || isPlayPendingRef.current) return;
+    isPlayPendingRef.current = true;
+    video
+      .play()
+      .then(() => {
+        isPlayPendingRef.current = false;
+        setIsPlaying(true);
+      })
+      .catch((err) => {
+        isPlayPendingRef.current = false;
+        // AbortError happens harmlessly when the media source or user action interrupts play()
+        if (err.name !== "AbortError") {
+          setStatus("paused");
+          setIsPlaying(false);
+        }
+      });
   };
 
   useEffect(() => {
@@ -81,10 +93,6 @@ export default function HLSPlayer({ url }: HLSPlayerProps) {
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          tryPlay(video);
-        });
-
-        hls.on(Hls.Events.FRAG_LOADED, () => {
           tryPlay(video);
         });
 

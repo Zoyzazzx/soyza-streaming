@@ -20,7 +20,10 @@ import {
   Tv,
   RefreshCw,
   Eye,
-  Sliders
+  Sliders,
+  Copy,
+  Check,
+  ExternalLink
 } from "lucide-react";
 
 interface StreamStatus {
@@ -30,6 +33,8 @@ interface StreamStatus {
 
 export default function ViewerPage() {
   const HLS_URL = process.env.NEXT_PUBLIC_HLS_URL || "http://localhost:8888/live/stream/index.m3u8";
+  const [fullHlsUrl, setFullHlsUrl] = useState<string>("");
+  const [copied, setCopied] = useState<boolean>(false);
 
   const [streamStatus, setStreamStatus] = useState<StreamStatus>({ online: false, streaming: false });
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -49,6 +54,24 @@ export default function ViewerPage() {
   
   const router = useRouter();
   const supabase = createClient();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setFullHlsUrl(`${window.location.origin}/api/streams/live/stream/index.m3u8`);
+    }
+  }, []);
+
+  const handleCopyLink = async () => {
+    const urlToCopy = fullHlsUrl || `${window.location.origin}/api/streams/live/stream/index.m3u8`;
+    try {
+      await navigator.clipboard.writeText(urlToCopy);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch {
+      // Fallback
+      prompt("Copy HLS Stream URL:", urlToCopy);
+    }
+  };
 
   useEffect(() => {
     async function checkUserSession() {
@@ -216,14 +239,23 @@ export default function ViewerPage() {
           </button>
 
           {isLive && (
-            <a
-              href={HLS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-semibold text-purple-700 hover:text-purple-800 transition-colors bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl hidden sm:flex items-center gap-1"
+            <button
+              onClick={handleCopyLink}
+              className="text-xs font-semibold text-purple-700 hover:text-purple-800 transition-colors bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-xs"
+              title="Copy direct stream link for external players (VLC, OBS, PotPlayer)"
             >
-              Direct HLS ↗
-            </a>
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-emerald-700 font-bold">Copied URL!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Copy Player Link</span>
+                </>
+              )}
+            </button>
           )}
 
           <Link
@@ -325,6 +357,35 @@ export default function ViewerPage() {
                 </div>
              )}
           </div>
+
+          {/* Stream Link bar for viewers & external players */}
+          {isLive && (
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-gray-600 min-w-0">
+                <Radio className="w-4 h-4 text-purple-600 shrink-0" />
+                <span className="font-semibold text-gray-900 shrink-0">External Player Stream Link:</span>
+                <code className="bg-white border border-gray-200 px-2 py-1 rounded text-purple-700 font-mono text-[11px] truncate select-all max-w-xs sm:max-w-md">
+                  {fullHlsUrl || "/api/streams/live/stream/index.m3u8"}
+                </code>
+              </div>
+              <button
+                onClick={handleCopyLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 font-medium transition-all shadow-2xs shrink-0 self-end sm:self-auto"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-700 font-semibold">Copied to Clipboard</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-gray-500" />
+                    <span>Copy for VLC / OBS</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
         
         {/* Footer */}

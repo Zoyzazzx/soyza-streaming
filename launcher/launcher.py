@@ -843,8 +843,8 @@ class SystemCheckWindow(tk.Toplevel):
             else:
                 self._log("Running npm install in Dashboard...", "warn")
                 try:
-                    # Windows specific npm command handling, shutil.which helps find if npm is available
-                    npm_cmd = shutil.which("npm") or "npm.cmd"
+                    # Windows specific npm command handling
+                    npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
                     subprocess.run([npm_cmd, "install"], cwd=dash_path, check=True, capture_output=True, env=subprocess_env())
                     self._log("✔ Dashboard dependencies installed.", "success")
                 except Exception as e:
@@ -863,7 +863,7 @@ class SystemCheckWindow(tk.Toplevel):
             else:
                 self._log("Running npm install in Upload Worker...", "warn")
                 try:
-                    npm_cmd = shutil.which("npm") or "npm.cmd"
+                    npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
                     subprocess.run([npm_cmd, "install"], cwd=worker_path, check=True, capture_output=True, env=subprocess_env())
                     self._log("✔ Upload Worker dependencies installed.", "success")
                 except Exception as e:

@@ -242,6 +242,7 @@ async function performStitch() {
     const targetDir = path.join(RECORDINGS_DIR, "live", "stream");
     if (!fs.existsSync(targetDir)) {
       log("   No live/stream directory found.");
+      isStitching = false;
       return { success: true, message: "No segments found" };
     }
 
@@ -251,6 +252,7 @@ async function performStitch() {
 
     if (files.length === 0) {
       log("   No orphaned segments found to stitch.");
+      isStitching = false;
       return { success: true, message: "No segments found" };
     }
 
@@ -267,6 +269,7 @@ async function performStitch() {
         }
       }
       log(`🧹 Discarded all segments because recording is disabled.`);
+      isStitching = false;
       return { success: true, message: "Segments discarded because recording is disabled" };
     }
 
@@ -274,7 +277,7 @@ async function performStitch() {
     
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const listPath = path.join(targetDir, `list_${timestamp}.txt`);
-    const listContent = files.map(f => `file '${f}'`).join("\n");
+    const listContent = files.map(f => `file '${path.join(targetDir, f).replace(/\\/g, '/')}'`).join("\n");
     fs.writeFileSync(listPath, listContent);
 
     const masterFile = `master_${timestamp}.mp4`;
@@ -304,15 +307,16 @@ async function performStitch() {
             log(`3. Or install it globally (e.g. via winget install ffmpeg)`);
             log(`========================================================================`);
           }
+          isStitching = false;
           return reject(error);
         }
-        log(`✅ Successfully stitched ${files.length} segments into ${masterFile}`);
-        if (fs.existsSync(listPath)) {
-          fs.unlinkSync(listPath); // Cleanup list.txt
-        }
-
-        // Upload master file now
         try {
+          log(`✅ Successfully stitched ${files.length} segments into ${masterFile}`);
+          if (fs.existsSync(listPath)) {
+            await deleteFileWithRetry(listPath); // Cleanup list.txt safely
+          }
+
+          // Upload master file now
           await uploadFile(masterPath);
           log(`✨ Master file uploaded. Cleaning up ${files.length} segment files from local and cloud storage...`);
 
@@ -335,7 +339,7 @@ async function performStitch() {
           for (const file of files) {
             const segPath = path.join(targetDir, file);
             if (fs.existsSync(segPath)) {
-              fs.unlinkSync(segPath);
+              await deleteFileWithRetry(segPath);
             }
           }
           log(`🧹 Successfully cleaned up all intermediate segment files.`);

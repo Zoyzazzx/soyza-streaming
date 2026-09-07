@@ -126,6 +126,15 @@ def resolve_cmd(cmd: list, cwd: str) -> list:
     mediamtx.exe which lives in the cwd but is NOT on %PATH%.
     """
     exe = cmd[0]
+    
+    # Check for local python virtual environment
+    if exe in ("py", "python", "python3"):
+        venv_py = os.path.join(cwd, "venv", "Scripts", "python.exe")
+        if not os.path.exists(venv_py):
+            venv_py = os.path.join(cwd, "venv", "bin", "python") # linux fallback
+        if os.path.exists(venv_py):
+            return [venv_py] + cmd[1:]
+
     if os.path.dirname(exe):          # already has a path component
         return cmd
     candidate = os.path.join(cwd, exe)

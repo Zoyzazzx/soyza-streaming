@@ -18,6 +18,7 @@ import ctypes
 import time
 import json
 from datetime import datetime
+import shutil
 
 # ── Config file lives next to the exe (or script) — survives moves ────────────
 if getattr(sys, "frozen", False):
@@ -727,6 +728,192 @@ class ServicePanel(tk.Frame):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+class SystemCheckWindow(tk.Toplevel):
+    def __init__(self, parent, cfg: dict):
+        super().__init__(parent)
+        self.cfg = cfg
+        self.title("System Check")
+        self.configure(bg=BG)
+        self.geometry("700x500")
+        self.resizable(True, True)
+        self.grab_set()
+        self.focus_set()
+
+        # Centre over parent
+        pw, ph = parent.winfo_width(), parent.winfo_height()
+        px, py = parent.winfo_rootx(), parent.winfo_rooty()
+        self.geometry(f"+{px + max(0, (pw - 700) // 2)}+{py + max(0, (ph - 500) // 2)}")
+
+        self._build_ui()
+        threading.Thread(target=self._run_checks, daemon=True).start()
+
+    def _build_ui(self):
+        hdr = tk.Frame(self, bg=PANEL, pady=14, padx=20)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="  System Check", font=("Segoe UI", 15, "bold"), fg=TEXT, bg=PANEL, anchor="w").pack(fill="x")
+        tk.Label(hdr, text="Verifying and fixing dependencies...", font=FONT_SUB, fg=TEXT_DIM, bg=PANEL, anchor="w").pack(fill="x", pady=(4, 0))
+
+        tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
+
+        self.log_txt = scrolledtext.ScrolledText(
+            self, bg=LOG_BG, fg=LOG_FG, font=FONT_MONO,
+            insertbackground=TEXT, relief="flat", bd=0,
+            padx=12, pady=12, state="disabled", wrap="word"
+        )
+        self.log_txt.pack(fill="both", expand=True)
+        
+        self.log_txt.tag_config("info", foreground=LOG_FG)
+        self.log_txt.tag_config("warn", foreground=WARNING)
+        self.log_txt.tag_config("error", foreground=DANGER)
+        self.log_txt.tag_config("success", foreground=SUCCESS)
+        self.log_txt.tag_config("header", foreground="#818CF8", font=("Consolas", 10, "bold"))
+
+        tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
+        footer = tk.Frame(self, bg=PANEL, pady=10, padx=20)
+        footer.pack(fill="x", side="bottom")
+
+        self.close_btn = tk.Button(
+            footer, text="  Close  ", font=FONT_BTN,
+            bg=SURFACE, fg=TEXT_DIM,
+            activebackground=BORDER, activeforeground=TEXT,
+            relief="flat", bd=0, padx=14, pady=7, cursor="hand2",
+            command=self.destroy, state="disabled"
+        )
+        self.close_btn.pack(side="right")
+
+    def _log(self, text: str, tag: str = "info"):
+        def _w():
+            self.log_txt.config(state="normal")
+            self.log_txt.insert("end", text + "\n", tag)
+            self.log_txt.see("end")
+            self.log_txt.config(state="disabled")
+        self.after(0, _w)
+
+    def _run_checks(self):
+        self._log("=== Starting System Check ===", "header")
+        
+        all_passed = True
+        
+        # 1. Python check
+        self._log("\nChecking Python...", "header")
+        if shutil.which("python") or shutil.which("py"):
+            self._log("✔ Python is installed.", "success")
+        else:
+            self._log("✘ Python not found. Please install Python and add it to PATH.", "error")
+            all_passed = False
+
+        # 2. Node check
+        self._log("\nChecking Node.js...", "header")
+        if shutil.which("node"):
+            self._log("✔ Node.js is installed.", "success")
+        else:
+            self._log("✘ Node.js not found. Please install Node.js.", "error")
+            all_passed = False
+
+        # 3. FFmpeg check
+        self._log("\nChecking FFmpeg...", "header")
+        worker_path = self.cfg.get("upload_worker", "")
+        if shutil.which("ffmpeg"):
+            self._log("✔ FFmpeg is installed in PATH.", "success")
+        elif worker_path and os.path.isfile(os.path.join(worker_path, "ffmpeg.exe")):
+            self._log("✔ FFmpeg found in Upload Worker folder.", "success")
+        else:
+            self._log("✘ FFmpeg not found. Please install FFmpeg and add it to PATH, or place ffmpeg.exe in the upload-worker folder.", "error")
+            all_passed = False
+
+        # 4. MediaMTX check
+        self._log("\nChecking MediaMTX...", "header")
+        mtx_path = self.cfg.get("mediamtx", "")
+        if not mtx_path or not os.path.isdir(mtx_path):
+            self._log("✘ MediaMTX path not configured in Settings.", "error")
+            all_passed = False
+        else:
+            if os.path.isfile(os.path.join(mtx_path, "mediamtx.exe")):
+                self._log("✔ mediamtx.exe found.", "success")
+            else:
+                self._log(f"✘ mediamtx.exe not found in {mtx_path}. Please download it.", "error")
+                all_passed = False
+
+        # 5. Dashboard npm install
+        self._log("\nChecking Dashboard dependencies...", "header")
+        dash_path = self.cfg.get("dashboard", "")
+        if dash_path and os.path.isdir(dash_path):
+            if os.path.isdir(os.path.join(dash_path, "node_modules")):
+                self._log("✔ Dashboard node_modules exist.", "success")
+            else:
+                self._log("Running npm install in Dashboard...", "warn")
+                try:
+                    # Windows specific npm command handling, shutil.which helps find if npm is available
+                    npm_cmd = shutil.which("npm") or "npm.cmd"
+                    subprocess.run([npm_cmd, "install"], cwd=dash_path, check=True, capture_output=True, env=subprocess_env())
+                    self._log("✔ Dashboard dependencies installed.", "success")
+                except Exception as e:
+                    self._log(f"✘ Failed to install Dashboard dependencies: {e}", "error")
+                    all_passed = False
+        else:
+            self._log("✘ Dashboard path not configured in Settings.", "error")
+            all_passed = False
+
+        # 6. Upload Worker npm install
+        self._log("\nChecking Upload Worker dependencies...", "header")
+        worker_path = self.cfg.get("upload_worker", "")
+        if worker_path and os.path.isdir(worker_path):
+            if os.path.isdir(os.path.join(worker_path, "node_modules")):
+                self._log("✔ Upload Worker node_modules exist.", "success")
+            else:
+                self._log("Running npm install in Upload Worker...", "warn")
+                try:
+                    npm_cmd = shutil.which("npm") or "npm.cmd"
+                    subprocess.run([npm_cmd, "install"], cwd=worker_path, check=True, capture_output=True, env=subprocess_env())
+                    self._log("✔ Upload Worker dependencies installed.", "success")
+                except Exception as e:
+                    self._log(f"✘ Failed to install Upload Worker dependencies: {e}", "error")
+                    all_passed = False
+        else:
+            self._log("✘ Upload Worker path not configured in Settings.", "error")
+            all_passed = False
+
+        # 7. Monitor venv
+        self._log("\nChecking Monitor dependencies...", "header")
+        mon_path = self.cfg.get("monitor", "")
+        if mon_path and os.path.isdir(mon_path):
+            venv_path = os.path.join(mon_path, "venv")
+            if os.path.isdir(venv_path):
+                self._log("✔ Monitor virtual environment exists.", "success")
+            else:
+                self._log("Creating virtual environment in Monitor...", "warn")
+                try:
+                    py_cmd = shutil.which("python") or shutil.which("py") or sys.executable
+                    subprocess.run([py_cmd, "-m", "venv", "venv"], cwd=mon_path, check=True, capture_output=True, env=subprocess_env())
+                    self._log("✔ Virtual environment created.", "success")
+                    
+                    req_path = os.path.join(mon_path, "requirements.txt")
+                    if os.path.isfile(req_path):
+                        self._log("Installing Monitor requirements...", "warn")
+                        pip_exe = os.path.join(venv_path, "Scripts", "pip.exe")
+                        if not os.path.exists(pip_exe):
+                            pip_exe = os.path.join(venv_path, "bin", "pip") # fallback for non-windows
+                        subprocess.run([pip_exe, "install", "-r", "requirements.txt"], cwd=mon_path, check=True, capture_output=True, env=subprocess_env())
+                        self._log("✔ Monitor requirements installed.", "success")
+                    else:
+                        self._log("⚠ requirements.txt not found, skipping pip install.", "warn")
+                except Exception as e:
+                    self._log(f"✘ Failed to setup Monitor venv: {e}", "error")
+                    all_passed = False
+        else:
+            self._log("✘ Monitor path not configured in Settings.", "error")
+            all_passed = False
+
+        self._log("\n=== System Check Complete ===", "header")
+        if all_passed:
+            self._log("All checks passed successfully!", "success")
+        else:
+            self._log("Some checks failed. Please review the errors above.", "error")
+
+        self.after(0, lambda: self.close_btn.config(state="normal", bg=SURFACE, fg=TEXT, cursor="hand2"))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 class LauncherApp(tk.Tk):
 
     def __init__(self, cfg: dict):
@@ -765,6 +952,12 @@ class LauncherApp(tk.Tk):
 
         right = tk.Frame(bar, bg=PANEL)
         right.pack(side="right")
+
+        tk.Button(right, text="  System Check  ", font=FONT_BTN,
+                  bg=SURFACE, fg=TEXT_DIM,
+                  activebackground=BORDER, activeforeground=TEXT,
+                  relief="flat", bd=0, padx=14, pady=7, cursor="hand2",
+                  command=self.run_system_check).pack(side="left", padx=(0, 8))
 
         tk.Button(right, text="  Settings  ", font=FONT_BTN,
                   bg=SURFACE, fg=TEXT_DIM,
@@ -818,7 +1011,10 @@ class LauncherApp(tk.Tk):
         tk.Label(bar, text=f"Config: {CONFIG_PATH}",
                  font=FONT_SMALL, fg=TEXT_MUTED, bg=PANEL).pack(side="right")
 
-    # ── Settings ───────────────────────────────────────────────────────────
+    # ── Settings & Tools ───────────────────────────────────────────────────
+
+    def run_system_check(self):
+        SystemCheckWindow(self, self.cfg)
 
     def open_settings(self, first_run=False):
         SettingsWindow(self, self.cfg, self._apply_config, first_run=first_run)

@@ -25,7 +25,8 @@ export async function GET(
     }
 
     const subPath = path.join("/");
-    const targetUrl = `${MEDIAMTX_HLS_INTERNAL}/${subPath}`;
+    const search = req.nextUrl.search;
+    const targetUrl = `${MEDIAMTX_HLS_INTERNAL}/${subPath}${search}`;
 
     // Forward range header if present (for seeking / players)
     const headers: Record<string, string> = {
@@ -67,8 +68,9 @@ export async function GET(
       contentType.includes("x-mpegurl")
     ) {
       const playlistText = await upstreamRes.text();
+      const origin = req.headers.get("x-forwarded-proto") ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}` : req.nextUrl.origin;
       const basePathSegments = path.slice(0, -1);
-      const proxyBasePath = `/api/streams/${basePathSegments.join("/")}`;
+      const proxyBasePath = `${origin}/api/streams/${basePathSegments.join("/")}`;
 
       // Rewrite line-by-line: any line that isn't a comment/tag and not an absolute URL
       const rewrittenLines = playlistText.split("\n").map((line) => {

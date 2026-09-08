@@ -1078,7 +1078,7 @@ export default function BroadcastStudio() {
                 </button>
               ) : (
                 <button
-                  onClick={startBroadcast}
+                  onClick={() => startBroadcast()}
                   className="flex items-center gap-2 px-6 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white font-bold text-xs transition-all shadow-md active:scale-95"
                 >
                   <Radio className="w-3.5 h-3.5" />

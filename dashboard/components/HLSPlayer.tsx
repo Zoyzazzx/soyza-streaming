@@ -133,7 +133,18 @@ export default function HLSPlayer({ url }: HLSPlayerProps) {
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                hls.startLoad();
+                if (
+                  data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
+                  data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT
+                ) {
+                  // If the server went down completely, a full reconnect is needed
+                  hls.destroy();
+                  setStatus("offline");
+                  setTimeout(() => setRetryCount((c) => c + 1), 3000);
+                } else {
+                  // For minor network blips, try to resume loading segments
+                  hls.startLoad();
+                }
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 hls.recoverMediaError();

@@ -191,6 +191,15 @@ async function uploadFile(filePath) {
 
     const publicUrl = urlData.publicUrl;
 
+    // Check if performStitch cleaned this file up while we were uploading
+    // If it did, it means this segment is already part of a master file.
+    if (!filename.startsWith("master_") && !fs.existsSync(filePath)) {
+      log(`⚠️  File ${filename} was deleted from disk during upload (likely stitched). Skipping DB insert.`);
+      // Clean up the orphaned cloud file too
+      await supabase.storage.from(BUCKET).remove([storagePath]);
+      return;
+    }
+
     // Insert metadata row into recordings table
     const { error: dbError } = await supabase
       .from("recordings")
@@ -246,14 +255,29 @@ async function performStitch() {
       return { success: true, message: "No segments found" };
     }
 
-    const files = fs.readdirSync(targetDir)
+    let files = fs.readdirSync(targetDir)
       .filter(f => f.endsWith(".mp4") && !f.startsWith("master_"))
       .sort(); // Sorting ensures chronological order
 
+    // Filter out files that are still being written by MediaMTX
+    const stableFiles = [];
+    for (const file of files) {
+      const filePath = path.join(targetDir, file);
+      const size1 = getFileSizeBytes(filePath);
+      await sleep(500); // Check if size changes over 500ms
+      const size2 = getFileSizeBytes(filePath);
+      if (size1 === size2 && size1 > 0) {
+        stableFiles.push(file);
+      } else {
+        log(`   Skipping ${file} as it is currently being written...`);
+      }
+    }
+    files = stableFiles;
+
     if (files.length === 0) {
-      log("   No orphaned segments found to stitch.");
+      log("   No stable segments found to stitch.");
       isStitching = false;
-      return { success: true, message: "No segments found" };
+      return { success: true, message: "No stable segments found" };
     }
 
     // Check if recording is disabled. If disabled, do not stitch or upload master! Discard segments.

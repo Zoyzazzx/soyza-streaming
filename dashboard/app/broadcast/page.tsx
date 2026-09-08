@@ -80,6 +80,7 @@ export default function BroadcastStudio() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [broadcastStartTime, setBroadcastStartTime] = useState<number | null>(null);
   const [sessionCreatedTime, setSessionCreatedTime] = useState<number>(Date.now());
   const [broadcastDuration, setBroadcastDuration] = useState<number>(0);
@@ -412,18 +413,42 @@ export default function BroadcastStudio() {
     router.push("/login");
   };
 
-  const startBroadcast = async () => {
+  // We use a ref to hold the latest startBroadcast function so the event listener doesn't use stale closures
+  const startBroadcastRef = useRef<((isRetry?: boolean) => Promise<void>) | null>(null);
+  const intendedStopRef = useRef<boolean>(false);
+
+  const startBroadcast = async (isRetry = false) => {
+    intendedStopRef.current = false;
+
+    // Helper to trigger retry loop
+    const scheduleRetry = (msg: string) => {
+      if (intendedStopRef.current) return;
+      
+      // If we are actively retrying, we hide the top error banner and rely on the UI overlay
+      if (!isRetry) {
+        setError(msg);
+      }
+      
+      if (isRetry) {
+        setTimeout(() => {
+          if (startBroadcastRef.current && !intendedStopRef.current) {
+            startBroadcastRef.current(true);
+          }
+        }, 3000);
+      }
+    };
+
     // 1. Verify all 3 backend infrastructure components are online
     if (!systemHealth.services.mediamtx.online) {
-      setError("Cannot initialize stream: MediaMTX streaming server is offline or unreachable on port 9997.");
+      scheduleRetry("MediaMTX streaming server is offline or unreachable.");
       return;
     }
     if (!systemHealth.services.worker.online) {
-      setError("Cannot initialize stream: Upload Worker service is offline or unreachable on port 4000.");
+      scheduleRetry("Upload Worker service is offline or unreachable.");
       return;
     }
     if (!systemHealth.services.monitor.online) {
-      setError("Cannot initialize stream: Connectivity Monitor is offline (no recent heartbeat detected in database).");
+      scheduleRetry("Connectivity Monitor is offline.");
       return;
     }
 
@@ -452,6 +477,27 @@ export default function BroadcastStudio() {
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
       });
       pcRef.current = pc;
+
+      // Handle unexpected disconnects (e.g. MediaMTX crashes)
+      pc.addEventListener("connectionstatechange", () => {
+        if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+          if (pcRef.current === pc && !intendedStopRef.current) {
+            console.warn("WebRTC connection lost. Attempting auto-reconnect...");
+            // DO NOT set isBroadcasting(false) so the stream UI doesn't visually "end".
+            // Instead, set isReconnecting(true) to trigger the overlay.
+            setIsReconnecting(true);
+            setError(null); 
+            pc.close();
+            pcRef.current = null;
+            
+            setTimeout(() => {
+              if (startBroadcastRef.current && !intendedStopRef.current) {
+                startBroadcastRef.current(true);
+              }
+            }, 3000);
+          }
+        }
+      });
 
       activeStream.getTracks().forEach((track) => {
         const transceiver = pc.addTransceiver(track, { streams: [activeStream] });
@@ -504,21 +550,29 @@ export default function BroadcastStudio() {
       }));
 
       setIsBroadcasting(true);
+      setIsReconnecting(false);
       setBroadcastStartTime(startTime);
       setBroadcastDuration(0);
+      setError(null);
     } catch (err: any) {
-      setError(`Broadcast failed: ${err.message}`);
-      setIsBroadcasting(false);
+      scheduleRetry(`Broadcast failed: ${err.message}`);
+      if (!isRetry) setIsBroadcasting(false);
     }
   };
 
+  useEffect(() => {
+    startBroadcastRef.current = startBroadcast;
+  }, [startBroadcast]);
+
   const stopBroadcast = async () => {
+    intendedStopRef.current = true;
     const wasBroadcasting = !!pcRef.current;
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;
     }
     setIsBroadcasting(false);
+    setIsReconnecting(false);
     setBroadcastStartTime(null);
     setBroadcastDuration(0);
 
@@ -1534,19 +1588,25 @@ export default function BroadcastStudio() {
                   />
                   
                   {/* System Failure Overlay (Prominent Alert) */}
-                  {isBroadcasting && !systemHealth.allHealthy && (
+                  {isBroadcasting && (!systemHealth.allHealthy || isReconnecting) && (
                     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-red-950/85 backdrop-blur-md text-white p-6 text-center animate-in fade-in">
                       <AlertTriangle className="w-16 h-16 text-red-500 mb-4 animate-bounce" />
                       <h2 className="text-2xl font-black uppercase tracking-widest mb-2 text-red-100">Critical Infrastructure Warning</h2>
-                      <div className="space-y-1 text-sm font-semibold max-w-lg text-red-200">
+                      <div className="space-y-2 text-sm font-semibold max-w-lg text-red-200">
+                        {isReconnecting && (
+                           <div className="bg-amber-900/50 p-3 rounded-xl border border-amber-500/50 flex flex-col items-center justify-center gap-2 mb-2 shadow-lg animate-pulse">
+                             <RefreshCw className="w-6 h-6 animate-spin text-amber-400" />
+                             <span className="font-bold text-amber-200 text-base">Reconnecting to Server... Please wait.</span>
+                           </div>
+                        )}
                         {!systemHealth.services.mediamtx.online && (
-                           <p className="bg-red-900/50 p-2 rounded-lg border border-red-500/30">❌ <b>MediaMTX Offline:</b> The streaming server dropped. Your live feed is currently disconnected from viewers!</p>
+                           <p className="bg-red-900/50 p-2 rounded-lg border border-red-500/30 text-left">❌ <b>MediaMTX Offline:</b> The streaming server dropped. Your live feed is currently disconnected from viewers!</p>
                         )}
                         {!systemHealth.services.worker.online && (
-                           <p className="bg-red-900/50 p-2 rounded-lg border border-red-500/30">⚠️ <b>Upload Worker Offline:</b> The recording archiver stopped responding. Cloud saving may be interrupted.</p>
+                           <p className="bg-red-900/50 p-2 rounded-lg border border-red-500/30 text-left">⚠️ <b>Upload Worker Offline:</b> The recording archiver stopped responding. Cloud saving may be interrupted.</p>
                         )}
                         {!systemHealth.services.monitor.online && (
-                           <p className="bg-red-900/50 p-2 rounded-lg border border-red-500/30">⚠️ <b>Monitor Offline:</b> The failover agent lost heartbeat. Autonomous failover is temporarily disabled.</p>
+                           <p className="bg-red-900/50 p-2 rounded-lg border border-red-500/30 text-left">⚠️ <b>Monitor Offline:</b> The failover agent lost heartbeat. Autonomous failover is temporarily disabled.</p>
                         )}
                       </div>
                     </div>

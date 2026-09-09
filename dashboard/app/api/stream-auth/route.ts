@@ -92,12 +92,35 @@ export async function PUT(req: Request) {
 
 // GET: Check stream privacy and viewer authentication state
 export async function GET() {
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Check Supabase system_settings for cloud-synced public mode & title
+  let isPublicMode = streamMeta.isPublic;
+  let activeTitle = streamMeta.title;
+
+  try {
+    const { data: settingsData } = await supabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["is_public", "stream_title"]);
+
+    if (settingsData && settingsData.length > 0) {
+      const map = new Map(settingsData.map((item: any) => [item.key, item.value]));
+      if (map.has("is_public")) {
+        isPublicMode = map.get("is_public") === "true";
+      }
+      if (map.has("stream_title")) {
+        activeTitle = map.get("stream_title") || activeTitle;
+      }
+    }
+  } catch {}
+
   // If public, viewers can access immediately
-  if (streamMeta.isPublic) {
+  if (isPublicMode) {
     return NextResponse.json({
       authenticated: true,
       isPublic: true,
-      title: streamMeta.title,
+      title: activeTitle,
       streamId: streamMeta.streamId,
       recordEnabled: streamMeta.recordEnabled
     });
@@ -110,12 +133,11 @@ export async function GET() {
     return NextResponse.json({
       authenticated: false,
       isPublic: false,
-      title: streamMeta.title,
+      title: activeTitle,
     });
   }
 
   const [streamId, password] = token.value.split(":");
-  const supabase = createClient(supabaseUrl, supabaseKey);
     
   const { data } = await supabase
     .from("stream_credentials")

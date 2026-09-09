@@ -567,13 +567,17 @@ export default function BroadcastStudio() {
       setBroadcastDuration(0);
       setError(null);
 
-      // Notify Supabase cloud that live broadcast is active
+      // Notify Supabase cloud via API route (bypassing client RLS)
       try {
-        await supabase.from("system_settings").upsert([
-          { key: "is_streaming", value: "true", updated_at: new Date().toISOString() },
-          { key: "stream_title", value: streamName, updated_at: new Date().toISOString() },
-          { key: "is_public", value: isPublic ? "true" : "false", updated_at: new Date().toISOString() }
-        ], { onConflict: "key" });
+        await fetch("/api/stream-routing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            isStreaming: true,
+            streamTitle: streamName,
+            isPublic: isPublic,
+          }),
+        });
       } catch (e) {
         console.warn("Notice updating cloud is_streaming:", e);
       }
@@ -599,11 +603,13 @@ export default function BroadcastStudio() {
     setBroadcastStartTime(null);
     setBroadcastDuration(0);
 
-    // Notify Supabase cloud that live broadcast has stopped
+    // Notify Supabase cloud via API route (bypassing client RLS)
     try {
-      await supabase.from("system_settings").upsert([
-        { key: "is_streaming", value: "false", updated_at: new Date().toISOString() }
-      ], { onConflict: "key" });
+      await fetch("/api/stream-routing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isStreaming: false }),
+      });
     } catch (e) {
       console.warn("Notice updating cloud is_streaming:", e);
     }

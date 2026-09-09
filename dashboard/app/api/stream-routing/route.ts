@@ -50,29 +50,60 @@ export async function POST(req: NextRequest) {
     const isTunneled = routingMode === "tunneled";
     const cleanTunnelUrl = (tunnelUrl || "").trim().replace(/\/+$/, "");
 
-    inMemoryRouting = {
-      routingMode: isTunneled ? "tunneled" : "local",
-      tunnelUrl: cleanTunnelUrl,
-      updatedAt: new Date().toISOString(),
-    };
+    if (routingMode !== undefined) {
+      inMemoryRouting = {
+        routingMode: isTunneled ? "tunneled" : "local",
+        tunnelUrl: cleanTunnelUrl || inMemoryRouting.tunnelUrl,
+        updatedAt: new Date().toISOString(),
+      };
+    }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
-    // Upsert into Supabase system_settings table
-    const updates = [
-      {
-        key: "use_tunnel",
-        value: isTunneled ? "true" : "false",
-        updated_at: new Date().toISOString(),
-      },
-      {
-        key: "hls_tunnel_url",
-        value: cleanTunnelUrl,
-        updated_at: new Date().toISOString(),
-      },
-    ];
+    const updates: Array<{ key: string; value: string; updated_at: string }> = [];
 
-    await supabase.from("system_settings").upsert(updates, { onConflict: "key" });
+    if (routingMode !== undefined) {
+      updates.push(
+        {
+          key: "use_tunnel",
+          value: isTunneled ? "true" : "false",
+          updated_at: new Date().toISOString(),
+        },
+        {
+          key: "hls_tunnel_url",
+          value: cleanTunnelUrl || inMemoryRouting.tunnelUrl,
+          updated_at: new Date().toISOString(),
+        }
+      );
+    }
+
+    // Support updating is_streaming, stream_title, is_public with service role privileges
+    if (body.isStreaming !== undefined) {
+      updates.push({
+        key: "is_streaming",
+        value: body.isStreaming ? "true" : "false",
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    if (body.streamTitle !== undefined) {
+      updates.push({
+        key: "stream_title",
+        value: String(body.streamTitle),
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    if (body.isPublic !== undefined) {
+      updates.push({
+        key: "is_public",
+        value: body.isPublic ? "true" : "false",
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    if (updates.length > 0) {
+      await supabase.from("system_settings").upsert(updates, { onConflict: "key" });
+    }
 
     return NextResponse.json({
       success: true,

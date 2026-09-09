@@ -4,7 +4,6 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// In-memory fallback
 let inMemoryRouting = {
   routingMode: "local" as "local" | "tunneled",
   tunnelUrl: "",
@@ -12,74 +11,73 @@ let inMemoryRouting = {
 };
 
 /**
- * GET: Retrieve active stream routing mode & tunnel URL
+ * GET: Retrieve active stream routing mode & tunnel URL from Supabase system_settings
  */
 export async function GET() {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { data, error } = await supabase
-      .from("stream_credentials")
-      .select("*")
-      .eq("id", 1)
-      .single();
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["use_tunnel", "hls_tunnel_url"]);
 
-    if (!error && data) {
+    if (!error && data && data.length > 0) {
+      const settingsMap = new Map(data.map((item: any) => [item.key, item.value]));
+      const useTunnel = settingsMap.get("use_tunnel") === "true";
+      const tunnelUrl = settingsMap.get("hls_tunnel_url") || "";
+
       return NextResponse.json({
-        routingMode: data.routing_mode || inMemoryRouting.routingMode,
-        tunnelUrl: data.tunnel_url || inMemoryRouting.tunnelUrl,
-        updatedAt: data.updated_at || inMemoryRouting.updatedAt,
+        routingMode: useTunnel ? "tunneled" : "local",
+        tunnelUrl: tunnelUrl,
+        updatedAt: new Date().toISOString(),
       });
     }
 
     return NextResponse.json(inMemoryRouting);
-  } catch (err: any) {
+  } catch {
     return NextResponse.json(inMemoryRouting);
   }
 }
 
 /**
- * POST / PUT: Update the routing mode (local vs tunneled) and tunnel URL
+ * POST: Update the routing mode and tunnel URL into Supabase system_settings
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { routingMode, tunnelUrl } = body;
 
-    if (routingMode && routingMode !== "local" && routingMode !== "tunneled") {
-      return NextResponse.json(
-        { error: "routingMode must be 'local' or 'tunneled'" },
-        { status: 400 }
-      );
-    }
-
-    // Sanitize tunnel URL: strip trailing slash and ensure https/http
-    let cleanTunnelUrl = (tunnelUrl || "").trim().replace(/\/+$/, "");
+    const isTunneled = routingMode === "tunneled";
+    const cleanTunnelUrl = (tunnelUrl || "").trim().replace(/\/+$/, "");
 
     inMemoryRouting = {
-      routingMode: (routingMode as "local" | "tunneled") || inMemoryRouting.routingMode,
-      tunnelUrl: cleanTunnelUrl !== undefined ? cleanTunnelUrl : inMemoryRouting.tunnelUrl,
+      routingMode: isTunneled ? "tunneled" : "local",
+      tunnelUrl: cleanTunnelUrl,
       updatedAt: new Date().toISOString(),
     };
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     
-    // Attempt updating in Supabase stream_credentials table if columns exist
-    try {
-      await supabase
-        .from("stream_credentials")
-        .update({
-          routing_mode: inMemoryRouting.routingMode,
-          tunnel_url: inMemoryRouting.tunnelUrl,
-          updated_at: inMemoryRouting.updatedAt,
-        })
-        .eq("id", 1);
-    } catch (dbErr) {
-      console.warn("Supabase update for routing notice (schema may omit routing_mode column):", dbErr);
-    }
+    // Upsert into Supabase system_settings table
+    const updates = [
+      {
+        key: "use_tunnel",
+        value: isTunneled ? "true" : "false",
+        updated_at: new Date().toISOString(),
+      },
+      {
+        key: "hls_tunnel_url",
+        value: cleanTunnelUrl,
+        updated_at: new Date().toISOString(),
+      },
+    ];
+
+    await supabase.from("system_settings").upsert(updates, { onConflict: "key" });
 
     return NextResponse.json({
       success: true,
-      ...inMemoryRouting,
+      routingMode: inMemoryRouting.routingMode,
+      tunnelUrl: inMemoryRouting.tunnelUrl,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

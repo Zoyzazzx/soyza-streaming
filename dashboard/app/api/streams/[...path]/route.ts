@@ -20,13 +20,15 @@ async function resolveUpstreamBase(): Promise<string> {
     if (supabaseUrl && supabaseKey) {
       const supabase = createClient(supabaseUrl, supabaseKey);
       const { data } = await supabase
-        .from("stream_credentials")
-        .select("*")
-        .eq("id", 1)
-        .single();
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["use_tunnel", "hls_tunnel_url"]);
 
-      if (data && data.routing_mode === "tunneled" && data.tunnel_url) {
-        return data.tunnel_url.replace(/\/+$/, "");
+      if (data && data.length > 0) {
+        const map = new Map(data.map((item: any) => [item.key, item.value]));
+        if (map.get("use_tunnel") === "true" && map.get("hls_tunnel_url")) {
+          return map.get("hls_tunnel_url")!.replace(/\/+$/, "");
+        }
       }
     }
   } catch {

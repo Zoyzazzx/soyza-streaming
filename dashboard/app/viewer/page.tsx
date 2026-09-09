@@ -32,7 +32,7 @@ interface StreamStatus {
 }
 
 export default function ViewerPage() {
-  const HLS_URL = process.env.NEXT_PUBLIC_HLS_URL || "http://localhost:8888/live/stream/index.m3u8";
+  const HLS_URL = "/api/streams/live/stream/index.m3u8";
   const [fullHlsUrl, setFullHlsUrl] = useState<string>("");
   const [copied, setCopied] = useState<boolean>(false);
 

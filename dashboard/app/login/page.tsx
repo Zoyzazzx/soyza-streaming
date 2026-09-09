@@ -23,28 +23,27 @@ export default function LoginPage() {
     const cleanEmail = email.trim();
     
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password,
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password,
+          activeTab,
+        }),
       });
-      if (signInError) throw signInError;
-      
-      const userRole = data.user?.user_metadata?.role || "streamer";
 
-      if (activeTab === "streamer" && userRole === "viewer") {
-        await supabase.auth.signOut();
-        throw new Error("Access Denied: This account only has Viewer privileges. Please use the Viewer Login tab.");
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || "Login failed. Please check your credentials.");
       }
 
       // Trigger vanish animation
       setIsSuccess(true);
       setTimeout(() => {
-        if (activeTab === "viewer" || userRole === "viewer") {
-          router.push("/viewer");
-        } else {
-          router.push("/");
-        }
-      }, 800);
+        window.location.href = result.redirectUrl || "/";
+      }, 500);
     } catch (err: any) {
       setError(err.message);
       setLoading(false);

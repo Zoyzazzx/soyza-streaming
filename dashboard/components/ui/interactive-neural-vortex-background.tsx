@@ -56,7 +56,7 @@ const InteractiveNeuralVortex = ({ children, colorTheme = "blue" }: InteractiveN
         vec2 sine_acc = vec2(0.);
         vec2 res = vec2(0.);
         float scale = 8.;
-        for (int j = 0; j < 15; j++) {
+        for (int j = 0; j < 8; j++) {
           uv = rotate(uv, 1.);
           sine_acc = rotate(sine_acc, 1.);
           vec2 layer = uv * scale + float(j) + sine_acc - t;
@@ -153,7 +153,8 @@ const InteractiveNeuralVortex = ({ children, colorTheme = "blue" }: InteractiveN
 
     // Resize handler
     const resizeCanvas = () => {
-      const devicePixelRatio = Math.min(window.devicePixelRatio, 2);
+      // Clamping to 1.0 ensures remote laptops/phones don't fill 4K buffers and stall
+      const devicePixelRatio = 1.0;
       canvasEl.width = window.innerWidth * devicePixelRatio;
       canvasEl.height = window.innerHeight * devicePixelRatio;
       gl.viewport(0, 0, canvasEl.width, canvasEl.height);
@@ -219,11 +220,12 @@ const InteractiveNeuralVortex = ({ children, colorTheme = "blue" }: InteractiveN
       <canvas 
         ref={canvasRef} 
         id="neuro" 
+        style={{ pointerEvents: 'none' }}
         className="fixed inset-0 w-full h-full pointer-events-none z-0"
       ></canvas>
       
       {/* Content wrapper */}
-      <div className="relative z-10 w-full flex flex-col flex-1 items-center justify-center">
+      <div className="relative z-20 w-full flex flex-col flex-1 items-center justify-center pointer-events-auto">
         {children}
       </div>
     </div>

@@ -24,7 +24,9 @@ import {
   Copy,
   Check,
   ExternalLink,
-  Laptop
+  Laptop,
+  Info,
+  X
 } from "lucide-react";
 
 interface StreamStatus {
@@ -46,6 +48,9 @@ export default function ViewerPage() {
   // Stream Routing Mode state
   const [activeRoutingMode, setActiveRoutingMode] = useState<"local" | "tunneled">("local");
   const [streamHlsUrl, setStreamHlsUrl] = useState<string>("/api/streams/live/stream/index.m3u8");
+  const [tunnelUrlString, setTunnelUrlString] = useState<string>("");
+  const [isNetlifyHost, setIsNetlifyHost] = useState<boolean>(false);
+  const [isBannerDismissed, setIsBannerDismissed] = useState<boolean>(false);
 
   // Track viewer stream duration
   const [streamDuration, setStreamDuration] = useState<number>(0);
@@ -63,6 +68,12 @@ export default function ViewerPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       setFullHlsUrl(`${window.location.origin}/api/streams/live/stream/index.m3u8`);
+      // Detect if viewer is accessed via Netlify / public domain
+      const isRemote = !window.location.hostname.includes("localhost") && 
+                       !window.location.hostname.includes("127.0.0.1") && 
+                       !window.location.hostname.startsWith("192.168.") &&
+                       !window.location.hostname.startsWith("10.");
+      setIsNetlifyHost(isRemote);
     }
   }, []);
 
@@ -110,6 +121,9 @@ export default function ViewerPage() {
       const data = await res.json();
       if (data.routingMode) {
         setActiveRoutingMode(data.routingMode);
+        if (data.tunnelUrl) {
+          setTunnelUrlString(data.tunnelUrl);
+        }
         if (data.routingMode === "tunneled" && data.tunnelUrl) {
           const directUrl = `${data.tunnelUrl.replace(/\/+$/, "")}/live/stream/index.m3u8`;
           setStreamHlsUrl(directUrl);
@@ -323,8 +337,74 @@ export default function ViewerPage() {
       </header>
 
       {/* ── Main Content Stage ── */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-8 flex flex-col justify-center">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-8 flex flex-col justify-center space-y-4">
         
+        {/* ── Contextual Stream Routing Informational Banner (Dismissible) ── */}
+        {!isBannerDismissed && isLive && (
+          <>
+            {/* CASE A: User is on Netlify/Cloud, but broadcaster is running in Local Direct mode */}
+            {isNetlifyHost && activeRoutingMode === "local" && (
+              <div className="bg-blue-50/90 border border-blue-200/80 rounded-2xl p-4 text-blue-900 shadow-2xs flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
+                    <Info className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <p className="font-bold text-blue-950 text-sm">
+                      Stream is currently running in <span className="underline decoration-blue-400">Local Direct Route</span>
+                    </p>
+                    <p className="text-blue-800 leading-relaxed">
+                      The live feed is hosted on the broadcaster&apos;s local PC (<code className="bg-white/80 px-1 py-0.5 rounded font-mono text-[11px] text-blue-700">http://localhost:3000/viewer</code>). 
+                      To watch remotely from Netlify, the broadcaster should switch to <b>Cloudflare Tunnel Mode</b> in <b>Settings</b>.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsBannerDismissed(true)}
+                  className="text-blue-500 hover:text-blue-800 p-1.5 rounded-lg hover:bg-blue-100 transition-colors shrink-0"
+                  title="Dismiss message"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* CASE B: User is on Local PC/LAN, and stream is running in Tunneled mode */}
+            {!isNetlifyHost && activeRoutingMode === "tunneled" && (
+              <div className="bg-purple-50/90 border border-purple-200/80 rounded-2xl p-4 text-purple-900 shadow-2xs flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <p className="font-bold text-purple-950 text-sm">
+                      Stream is currently running in <span className="underline decoration-purple-400">Cloudflare Tunnel Mode</span>
+                    </p>
+                    <p className="text-purple-800 leading-relaxed">
+                      Traffic is routed via Cloudflare for external viewers. Remote viewers can watch directly at your Netlify address:{" "}
+                      <a 
+                        href="https://zoyza.netlify.app/viewer" 
+                        target="_blank" 
+                        rel="noreferrer" 
+                        className="font-mono font-bold text-purple-700 underline hover:text-purple-900 inline-flex items-center gap-1"
+                      >
+                        zoyza.netlify.app/viewer <ExternalLink className="w-3 h-3 inline" />
+                      </a>.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsBannerDismissed(true)}
+                  className="text-purple-500 hover:text-purple-800 p-1.5 rounded-lg hover:bg-purple-100 transition-colors shrink-0"
+                  title="Dismiss message"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
         {/* Stream Video Player Card */}
         <div className="bg-white border border-gray-200 rounded-3xl shadow-xl overflow-hidden flex flex-col transition-all">
           

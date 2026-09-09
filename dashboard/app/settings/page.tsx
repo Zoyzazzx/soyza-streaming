@@ -17,7 +17,12 @@ import {
   AlertCircle,
   Shield,
   KeyRound,
-  RefreshCw
+  RefreshCw,
+  Globe,
+  Laptop,
+  Server,
+  Save,
+  ExternalLink
 } from "lucide-react";
 
 interface UserItem {
@@ -42,6 +47,12 @@ export default function SettingsPage() {
   const [newRole, setNewRole] = useState<"viewer" | "streamer">("viewer");
   const [createLoading, setCreateLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Stream Routing (Local vs Tunneled) State
+  const [routingMode, setRoutingMode] = useState<"local" | "tunneled">("local");
+  const [tunnelUrl, setTunnelUrl] = useState<string>("");
+  const [routingSaving, setRoutingSaving] = useState<boolean>(false);
+  const [loadingRouting, setLoadingRouting] = useState<boolean>(true);
 
   // Check auth & role
   useEffect(() => {
@@ -79,9 +90,57 @@ export default function SettingsPage() {
     }
   };
 
+  // Fetch stream routing config
+  const fetchRouting = async () => {
+    setLoadingRouting(true);
+    try {
+      const res = await fetch("/api/stream-routing");
+      const data = await res.json();
+      if (data.routingMode) {
+        setRoutingMode(data.routingMode);
+      }
+      if (data.tunnelUrl !== undefined) {
+        setTunnelUrl(data.tunnelUrl || "");
+      }
+    } catch (err: any) {
+      console.warn("Error fetching stream routing:", err);
+    } finally {
+      setLoadingRouting(false);
+    }
+  };
+
+  const handleSaveRouting = async () => {
+    setRoutingSaving(true);
+    setStatusMsg(null);
+    try {
+      const res = await fetch("/api/stream-routing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          routingMode,
+          tunnelUrl,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatusMsg({
+          type: "success",
+          text: `Stream route updated to ${routingMode === "tunneled" ? "Cloudflare Tunnel" : "Local Direct"} successfully!`,
+        });
+      } else {
+        setStatusMsg({ type: "error", text: data.error || "Failed to update routing" });
+      }
+    } catch (err: any) {
+      setStatusMsg({ type: "error", text: err.message });
+    } finally {
+      setRoutingSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (!loadingAuth) {
       fetchUsers();
+      fetchRouting();
     }
   }, [loadingAuth]);
 
@@ -301,6 +360,121 @@ export default function SettingsPage() {
                 </tbody>
               </table>
             )}
+          </div>
+        </div>
+
+        {/* ── Stream Routing & Remote Access Configuration (Local vs Tunneled) ── */}
+        <div className="bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden animate-in fade-in duration-300">
+          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-inner">
+                <Server className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Stream Source Routing</h2>
+                <p className="text-xs text-gray-500">
+                  Switch video traffic between direct local loopback and Cloudflare Tunnel for Netlify viewers
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
+                routingMode === "tunneled"
+                  ? "bg-amber-50 border-amber-200 text-amber-800"
+                  : "bg-emerald-50 border-emerald-200 text-emerald-800"
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${routingMode === "tunneled" ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
+                {routingMode === "tunneled" ? "Cloudflare Tunneled Route" : "Local Direct Route"}
+              </span>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-6">
+            {/* Mode selection cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Option 1: Local Direct */}
+              <button
+                type="button"
+                onClick={() => setRoutingMode("local")}
+                className={`p-5 rounded-2xl border text-left transition-all ${
+                  routingMode === "local"
+                    ? "border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20 shadow-xs"
+                    : "border-gray-200 bg-gray-50/50 hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                    routingMode === "local" ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-600"
+                  }`}>
+                    <Laptop className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm text-gray-900 block">Local Direct Mode</span>
+                    <span className="text-[11px] text-gray-500 block">Localhost / LAN loopback</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed mt-2">
+                  Routes HLS stream directly via <code className="text-purple-600 font-mono text-[11px] bg-white px-1.5 py-0.5 rounded border">http://localhost:8888</code>. Ideal for local testing and zero internet latency.
+                </p>
+              </button>
+
+              {/* Option 2: Cloudflare Tunneled */}
+              <button
+                type="button"
+                onClick={() => setRoutingMode("tunneled")}
+                className={`p-5 rounded-2xl border text-left transition-all ${
+                  routingMode === "tunneled"
+                    ? "border-purple-500 bg-purple-50/50 ring-2 ring-purple-500/20 shadow-xs"
+                    : "border-gray-200 bg-gray-50/50 hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                    routingMode === "tunneled" ? "bg-purple-100 text-purple-700" : "bg-gray-200 text-gray-600"
+                  }`}>
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm text-gray-900 block">Cloudflare Tunnel Mode</span>
+                    <span className="text-[11px] text-purple-600 font-bold block">Netlify & Remote Viewers</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed mt-2">
+                  Routes HLS stream chunks via your active Cloudflare Tunnel. Required so viewers on Netlify can receive the stream from your PC.
+                </p>
+              </button>
+            </div>
+
+            {/* Tunnel URL input (shown if tunneled or to configure ahead) */}
+            <div className={`p-5 rounded-2xl border transition-all ${
+              routingMode === "tunneled" ? "bg-purple-50/30 border-purple-200" : "bg-gray-50 border-gray-200"
+            }`}>
+              <label className="text-xs font-bold uppercase tracking-wider text-gray-700 block mb-1">
+                Active Cloudflare Tunnel Base URL
+              </label>
+              <p className="text-xs text-gray-500 mb-3">
+                Run <code className="bg-white px-1.5 py-0.5 rounded border font-mono text-purple-700 text-[11px]">.\launcher\run_tunnel.bat</code> on your PC, then paste the generated <code className="font-mono text-gray-700 text-[11px]">https://...trycloudflare.com</code> URL here:
+              </p>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <input
+                  type="url"
+                  value={tunnelUrl}
+                  onChange={(e) => setTunnelUrl(e.target.value)}
+                  placeholder="https://example-subdomain.trycloudflare.com"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-purple-500 shadow-2xs font-mono"
+                />
+                <button
+                  type="button"
+                  disabled={routingSaving}
+                  onClick={handleSaveRouting}
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition-all shadow-sm flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{routingSaving ? "Saving..." : "Save Route Setting"}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 

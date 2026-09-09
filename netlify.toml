@@ -1,0 +1,9 @@
+# Netlify configuration for Next.js 16 App Router
+
+[build]
+  base = "dashboard"
+  publish = "dashboard/.next"
+  command = "npm run build"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

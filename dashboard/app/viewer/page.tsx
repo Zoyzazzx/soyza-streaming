@@ -23,7 +23,8 @@ import {
   Sliders,
   Copy,
   Check,
-  ExternalLink
+  ExternalLink,
+  Laptop
 } from "lucide-react";
 
 interface StreamStatus {
@@ -42,6 +43,10 @@ export default function ViewerPage() {
   const [streamTitle, setStreamTitle] = useState<string>("Live Stream Broadcast");
   const [userRole, setUserRole] = useState<string>("viewer");
   
+  // Stream Routing Mode state
+  const [activeRoutingMode, setActiveRoutingMode] = useState<"local" | "tunneled">("local");
+  const [streamHlsUrl, setStreamHlsUrl] = useState<string>("/api/streams/live/stream/index.m3u8");
+
   // Track viewer stream duration
   const [streamDuration, setStreamDuration] = useState<number>(0);
 
@@ -99,6 +104,28 @@ export default function ViewerPage() {
     checkAuth();
   }, []);
 
+  const checkRouting = async () => {
+    try {
+      const res = await fetch("/api/stream-routing");
+      const data = await res.json();
+      if (data.routingMode) {
+        setActiveRoutingMode(data.routingMode);
+        if (data.routingMode === "tunneled" && data.tunnelUrl) {
+          const directUrl = `${data.tunnelUrl.replace(/\/+$/, "")}/live/stream/index.m3u8`;
+          setStreamHlsUrl(directUrl);
+          setFullHlsUrl(directUrl);
+          return;
+        }
+      }
+      // Default to internal proxy route
+      const localProxy = `${window.location.origin}/api/streams/live/stream/index.m3u8`;
+      setStreamHlsUrl("/api/streams/live/stream/index.m3u8");
+      setFullHlsUrl(localProxy);
+    } catch {
+      setStreamHlsUrl("/api/streams/live/stream/index.m3u8");
+    }
+  };
+
   useEffect(() => {
     async function fetchStatusAndAuth() {
       try {
@@ -111,6 +138,7 @@ export default function ViewerPage() {
 
       // Check stream auth/privacy changes dynamically while on air
       checkAuth();
+      checkRouting();
     }
 
     fetchStatusAndAuth();
@@ -218,6 +246,23 @@ export default function ViewerPage() {
                 </span>
               )
             )}
+
+            {/* Stream Route Indicator */}
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+              activeRoutingMode === "tunneled"
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-blue-50 text-blue-700 border-blue-200"
+            }`}>
+              {activeRoutingMode === "tunneled" ? (
+                <>
+                  <Globe className="w-3 h-3 text-amber-600" /> Tunneled Route
+                </>
+              ) : (
+                <>
+                  <Laptop className="w-3 h-3 text-blue-600" /> Local Direct Route
+                </>
+              )}
+            </span>
           </div>
         </div>
 
@@ -288,7 +333,7 @@ export default function ViewerPage() {
              
              {/* SCENARIO 1: Live stream is currently broadcasting and authenticated */}
              {isLive && isAuthenticated ? (
-                <HLSPlayer url={HLS_URL} />
+                <HLSPlayer url={streamHlsUrl} />
              ) : isLive && !isAuthenticated ? (
                 /* SCENARIO 2: Private stream is live but needs unlock */
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/95 z-20 px-4">

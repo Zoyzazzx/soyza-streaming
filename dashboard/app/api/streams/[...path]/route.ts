@@ -1,10 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 // Default internal MediaMTX HLS base URL
-const MEDIAMTX_HLS_INTERNAL =
+const DEFAULT_MEDIAMTX_HLS =
   process.env.MEDIAMTX_HLS_INTERNAL_URL ||
   process.env.NEXT_PUBLIC_HLS_URL?.replace(/\/live\/.*$/, "") ||
   "http://127.0.0.1:8888";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+/**
+ * Determine the upstream target base:
+ * 1. Checks if stream_credentials specifies a custom tunnel URL / routing_mode
+ * 2. Falls back to DEFAULT_MEDIAMTX_HLS
+ */
+async function resolveUpstreamBase(): Promise<string> {
+  try {
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const { data } = await supabase
+        .from("stream_credentials")
+        .select("*")
+        .eq("id", 1)
+        .single();
+
+      if (data && data.routing_mode === "tunneled" && data.tunnel_url) {
+        return data.tunnel_url.replace(/\/+$/, "");
+      }
+    }
+  } catch {
+    // fallback to default
+  }
+  return DEFAULT_MEDIAMTX_HLS;
+}
 
 /**
  * Catch-all proxy route for HLS streams:
@@ -26,7 +55,8 @@ export async function GET(
 
     const subPath = path.join("/");
     const search = req.nextUrl.search;
-    const targetUrl = `${MEDIAMTX_HLS_INTERNAL}/${subPath}${search}`;
+    const upstreamBase = await resolveUpstreamBase();
+    const targetUrl = `${upstreamBase}/${subPath}${search}`;
 
     // Forward range header if present (for seeking / players)
     const headers: Record<string, string> = {
@@ -68,7 +98,9 @@ export async function GET(
       contentType.includes("x-mpegurl")
     ) {
       const playlistText = await upstreamRes.text();
-      const origin = req.headers.get("x-forwarded-proto") ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}` : req.nextUrl.origin;
+      const origin = req.headers.get("x-forwarded-proto")
+        ? `${req.headers.get("x-forwarded-proto")}://${req.headers.get("host")}`
+        : req.nextUrl.origin;
       const basePathSegments = path.slice(0, -1);
       const proxyBasePath = `${origin}/api/streams/${basePathSegments.join("/")}`;
 

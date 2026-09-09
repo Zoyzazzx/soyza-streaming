@@ -44,7 +44,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Cpu,
-  UploadCloud
+  UploadCloud,
+  Laptop
 } from "lucide-react";
 import NetworkStatus from "@/components/NetworkStatus";
 import FailoverLog from "@/components/FailoverLog";
@@ -114,6 +115,7 @@ export default function BroadcastStudio() {
   const [showSidebarPassword, setShowSidebarPassword] = useState(false);
   const [recordEnabled, setRecordEnabled] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [routingMode, setRoutingMode] = useState<"local" | "tunneled">("local");
 
   // Hardware & Devices
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
@@ -236,9 +238,9 @@ export default function BroadcastStudio() {
     }).catch(() => {});
   }, [router, supabase]);
 
-  // Periodic system health polling
+  // Periodic system health & routing polling
   useEffect(() => {
-    async function checkHealth() {
+    async function checkHealthAndRouting() {
       try {
         const res = await fetch("/api/system-health");
         if (res.ok) {
@@ -248,9 +250,19 @@ export default function BroadcastStudio() {
       } catch (err) {
         console.error("Health check error:", err);
       }
+
+      try {
+        const routeRes = await fetch("/api/stream-routing");
+        if (routeRes.ok) {
+          const routeData = await routeRes.json();
+          if (routeData.routingMode) {
+            setRoutingMode(routeData.routingMode);
+          }
+        }
+      } catch {}
     }
-    checkHealth();
-    const interval = setInterval(checkHealth, 3000);
+    checkHealthAndRouting();
+    const interval = setInterval(checkHealthAndRouting, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -995,6 +1007,27 @@ export default function BroadcastStudio() {
                   <HardDrive className="w-3.5 h-3.5 text-gray-400" /> Recording Off
                 </span>
               )}
+
+              {/* Stream Route Pill */}
+              <Link
+                href="/settings"
+                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 hover:opacity-80 transition-opacity ${
+                  routingMode === "tunneled"
+                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                    : "bg-blue-50 text-blue-700 border-blue-200"
+                }`}
+                title="Click to configure Local vs Tunneled route in Settings"
+              >
+                {routingMode === "tunneled" ? (
+                  <>
+                    <Globe className="w-3 h-3 text-amber-600" /> Tunneled Route
+                  </>
+                ) : (
+                  <>
+                    <Laptop className="w-3 h-3 text-blue-600" /> Local Direct
+                  </>
+                )}
+              </Link>
             </div>
 
             {/* Middle / Right: 3 Backend Infrastructure Component Health Indicators */}

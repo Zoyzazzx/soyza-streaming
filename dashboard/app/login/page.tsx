@@ -54,15 +54,15 @@ export default function LoginPage() {
     <InteractiveNeuralVortex colorTheme={activeTab === "streamer" ? "red" : "blue"}>
       <div className={`w-full max-w-md bg-white/70 border border-white/40 p-8 rounded-3xl shadow-2xl backdrop-blur-xl space-y-6 transition-all duration-700 ease-in-out ${isSuccess ? 'opacity-0 scale-90 translate-y-4' : 'opacity-100 scale-100 animate-in fade-in zoom-in duration-500'}`}>
         <div className="flex flex-col items-center space-y-3">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-500 ${
-            activeTab === "streamer"
-              ? "bg-gradient-to-br from-violet-600 to-purple-600 shadow-purple-500/20"
-              : "bg-gradient-to-br from-indigo-500 to-blue-600 shadow-blue-500/20"
-          }`}>
-            <Fingerprint className="w-7 h-7 text-white" />
+          <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border border-white/50 bg-white p-1">
+            <img 
+              src="/logo.jpg" 
+              alt="Z-Live Logo" 
+              className="w-full h-full object-contain rounded-xl"
+            />
           </div>
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">ZoyzaXR</h1>
+            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Z-Live</h1>
             <p className="text-sm text-gray-500 mt-1">
               {activeTab === "streamer" ? "Streamer Studio Access" : "Viewer Portal Access"}
             </p>
@@ -119,7 +119,7 @@ export default function LoginPage() {
                     ? "focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
                     : "focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 }`}
-                placeholder={activeTab === "streamer" ? "admin@zoyzair.tv" : "viewer@zoyzair.tv"}
+                placeholder={activeTab === "streamer" ? "admin@zlive.tv" : "viewer@zlive.tv"}
                 required
               />
             </div>

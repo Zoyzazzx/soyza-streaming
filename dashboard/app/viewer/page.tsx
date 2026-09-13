@@ -231,12 +231,12 @@ export default function ViewerPage() {
         <div className="flex items-center gap-4">
           <Link href="/" className="shrink-0 flex items-center gap-3 group">
             <img 
-              src="/logo.png" 
-              alt="ZoyzaXR Logo" 
+              src="/logo.jpg" 
+              alt="Z-Live Logo" 
               className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100 group-hover:scale-105 transition-transform" 
             />
             <div className="hidden sm:block">
-              <span className="font-extrabold text-gray-900 text-base tracking-tight block">ZoyzaXR</span>
+              <span className="font-extrabold text-gray-900 text-base tracking-tight block">Z-Live</span>
               <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Live Viewer</span>
             </div>
           </Link>
@@ -383,12 +383,12 @@ export default function ViewerPage() {
                     <p className="text-purple-800 leading-relaxed">
                       Traffic is routed via Cloudflare for external viewers. Remote viewers can watch directly at your Netlify address:{" "}
                       <a 
-                        href="https://zoyza.netlify.app/viewer" 
+                        href="https://zlive.netlify.app/viewer" 
                         target="_blank" 
                         rel="noreferrer" 
                         className="font-mono font-bold text-purple-700 underline hover:text-purple-900 inline-flex items-center gap-1"
                       >
-                        zoyza.netlify.app/viewer <ExternalLink className="w-3 h-3 inline" />
+                        zlive.netlify.app/viewer <ExternalLink className="w-3 h-3 inline" />
                       </a>.
                     </p>
                   </div>
@@ -515,7 +515,7 @@ export default function ViewerPage() {
         
         {/* Footer */}
         <div className="mt-8 text-center text-xs text-gray-400">
-          ZoyzaXR Project — E299625 | Kingston University London
+          Z-Live Project — E299625 | Kingston University London
         </div>
       </main>
 

@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { Home } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Recordings — ZoyzaXR",
+  title: "Recordings — Z-Live",
   description: "Browse and play all cloud-uploaded stream recordings.",
 };
 
@@ -17,13 +17,13 @@ export default function RecordingsPage() {
           <div className="flex items-center gap-3">
             <Link href="/" className="shrink-0 flex items-center gap-2">
               <img 
-                src="/logo.png" 
-                alt="ZoyzaXR Logo" 
+                src="/logo.jpg" 
+                alt="Z-Live Logo" 
                 className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100" 
               />
             </Link>
             <div>
-              <span className="font-bold text-gray-900 text-lg tracking-tight block">ZoyzaXR</span>
+              <span className="font-bold text-gray-900 text-lg tracking-tight block">Z-Live</span>
               <span className="text-gray-500 text-xs">Recordings</span>
             </div>
           </div>

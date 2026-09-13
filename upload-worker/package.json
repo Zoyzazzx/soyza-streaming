@@ -1,5 +1,5 @@
 {
-  "name": "soyza-upload-worker",
+  "name": "zlive-upload-worker",
   "version": "1.0.0",
   "description": "Watches the MediaMTX recordings folder and uploads completed .mp4 files to Supabase Storage",
   "main": "worker.js",

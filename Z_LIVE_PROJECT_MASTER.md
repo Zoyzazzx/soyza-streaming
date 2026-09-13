@@ -1,4 +1,4 @@
-# 🎬 SOYZA PROJECT — Master Implementation Document
+# 🎬 Z-LIVE PROJECT — Master Implementation Document
 > **Project**: Secure Hybrid Network Real-Time Data Streaming and Storage System
 > **Student**: Prashan Zoysa | **ID**: E299625 | **Module**: C16600
 > **University**: Kingston University London
@@ -68,7 +68,7 @@ Design and implement a simplified hybrid network system (simulating 5G + satelli
                                     Cloudflare Tunnel
                                     (exposes MediaMTX                Next.js Dashboard
   Upload Worker (Node.js)            ports to public HTTPS)  ◄───── (deployed on Vercel)
-    Watches recordings/ folder             │                          https://soyza-streaming.vercel.app
+    Watches recordings/ folder             │                          https://zlive-streaming.vercel.app
     Uploads .mp4 → Supabase Storage        │
          │                                 ▼
          └──────── HTTPS ──────────► SUPABASE (Cloud)
@@ -118,7 +118,7 @@ Design and implement a simplified hybrid network system (simulating 5G + satelli
 ## 4. Directory Structure
 
 ```
-f:\Data\Yvexa\Projects\Soyza Project\
+f:\Data\Yvexa\Projects\Z-Live Project\
 |
 +-- SOYZA_PROJECT_MASTER.md         <- This file (project backbone)
 |
@@ -173,7 +173,7 @@ f:\Data\Yvexa\Projects\Soyza Project\
 
 **Download**: https://github.com/bluenviron/mediamtx/releases/latest
 - File: `mediamtx_vX.X.X_windows_amd64.zip`
-- Extract to `f:\Data\Yvexa\Projects\Soyza Project\mediamtx\`
+- Extract to `f:\Data\Yvexa\Projects\Z-Live Project\mediamtx\`
 - Run: `./mediamtx.exe` (no install needed, single binary)
 
 **Key Ports**:
@@ -185,7 +185,7 @@ f:\Data\Yvexa\Projects\Soyza Project\
 
 **mediamtx.yml config** (save to `mediamtx/mediamtx.yml`):
 ```yaml
-# MediaMTX Configuration for Soyza Project
+# MediaMTX Configuration for Z-Live Project
 logLevel: info
 logDestinations: [stdout]
 
@@ -295,7 +295,7 @@ python-dotenv==1.0.0
 **upload-worker/package.json**:
 ```json
 {
-  "name": "soyza-upload-worker",
+  "name": "zlive-upload-worker",
   "version": "1.0.0",
   "main": "worker.js",
   "dependencies": {
@@ -334,7 +334,7 @@ SUPABASE_BUCKET=recordings
 
 **Initialize command**:
 ```bash
-cd "f:\Data\Yvexa\Projects\Soyza Project"
+cd "f:\Data\Yvexa\Projects\Z-Live Project"
 npx create-next-app@latest dashboard --typescript --tailwind --eslint --app --import-alias "@/*"
 cd dashboard
 npm install @supabase/supabase-js @supabase/ssr hls.js
@@ -371,7 +371,7 @@ Run this entire block in **Supabase → SQL Editor**:
 
 ```sql
 -- ============================================
--- SOYZA PROJECT — Supabase Database Schema
+-- Z-LIVE PROJECT — Supabase Database Schema
 -- ============================================
 
 -- Table 1: Network readings (inserted every 5s by Python monitor)
@@ -676,7 +676,7 @@ git push origin main
 | `NEXT_PUBLIC_HLS_URL` | *(your Cloudflare Tunnel HLS URL)* |
 | `NEXT_PUBLIC_MEDIAMTX_API` | *(your Cloudflare Tunnel base URL)* |
 
-5. Click **Deploy** → get your `https://soyza-streaming.vercel.app` URL
+5. Click **Deploy** → get your `https://zlive-streaming.vercel.app` URL
 
 **Step 3 — Redeploy after getting tunnel URL**:
 Each time you restart the field machine and get new tunnel URLs, update them in Vercel → Settings → Environment Variables → Redeploy.

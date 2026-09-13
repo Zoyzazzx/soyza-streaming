@@ -1,5 +1,5 @@
 /**
- * Soyza Project — Upload Worker
+ * Z-Live Project — Upload Worker
  * ==============================
  * Watches the MediaMTX recordings folder for completed .mp4 files.
  * When a file is stable (size unchanged for 3 seconds), uploads it
@@ -389,7 +389,7 @@ async function performStitch() {
 
 function start() {
   console.log("=".repeat(60));
-  console.log("  Soyza Project — Upload Worker");
+  console.log("  Z-Live Project — Upload Worker");
   console.log("=".repeat(60));
   console.log(`  Watching : ${RECORDINGS_DIR}`);
   console.log(`  Bucket   : ${BUCKET}`);

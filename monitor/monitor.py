@@ -1,5 +1,5 @@
 """
-Soyza Project — Network Monitor & Failover Script
+Z-Live Project — Network Monitor & Failover Script
 ==================================================
 Monitors two network paths (Adapters OR Gateways).
 Switches Windows routing when the primary link degrades.
@@ -196,7 +196,7 @@ def main():
     global active_interface, recovery_counter
 
     print("=" * 60)
-    print("  Soyza Project — Network Monitor & Failover")
+    print("  Z-Live Project — Network Monitor & Failover")
     print("=" * 60)
     print(f"  Mode     : {FAILOVER_MODE}")
     print(f"  Primary  : {PRIMARY_LABEL} ({PRIMARY_TARGET})")

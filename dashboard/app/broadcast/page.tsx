@@ -99,7 +99,7 @@ export default function BroadcastStudio() {
   });
 
   // User auth state
-  const [userEmail, setUserEmail] = useState<string>("admin@zoyzair.tv");
+  const [userEmail, setUserEmail] = useState<string>("admin@zlive.tv");
   const [userRole, setUserRole] = useState<string>("Streamer");
 
   // Progressive Wizard States (5 Steps: Identity, Privacy, Failover, Archival, Hardware)
@@ -129,7 +129,7 @@ export default function BroadcastStudio() {
   // Hydrate persistent broadcast session from localStorage on initial mount
   useEffect(() => {
     try {
-      const savedSession = localStorage.getItem("zoyzair_active_session");
+      const savedSession = localStorage.getItem("zlive_active_session");
       if (savedSession) {
         const parsed = JSON.parse(savedSession);
         if (parsed.isWizardComplete) {
@@ -159,13 +159,13 @@ export default function BroadcastStudio() {
         sessionCreatedTime: overrides?.sessionCreatedTime ?? sessionCreatedTime,
         resolution: overrides?.resolution ?? resolution,
       };
-      localStorage.setItem("zoyzair_active_session", JSON.stringify(stateToSave));
+      localStorage.setItem("zlive_active_session", JSON.stringify(stateToSave));
     } catch {}
   };
 
   const clearSessionStorage = () => {
     try {
-      localStorage.removeItem("zoyzair_active_session");
+      localStorage.removeItem("zlive_active_session");
     } catch {}
   };
 
@@ -708,12 +708,12 @@ export default function BroadcastStudio() {
               <>
                 <div className="flex items-center gap-3 overflow-hidden">
                   <img 
-                    src="/logo.png" 
-                    alt="ZoyzaXR Logo" 
+                    src="/logo.jpg" 
+                    alt="Z-Live Logo" 
                     className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100 shrink-0" 
                   />
                   <div className="truncate animate-in fade-in duration-200">
-                    <span className="font-extrabold text-gray-900 text-base tracking-tight block">ZoyzaXR</span>
+                    <span className="font-extrabold text-gray-900 text-base tracking-tight block">Z-Live</span>
                     <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Broadcast Studio</span>
                   </div>
                 </div>
@@ -729,8 +729,8 @@ export default function BroadcastStudio() {
             ) : (
               <div className="flex items-center justify-center gap-1.5">
                 <img 
-                  src="/logo.png" 
-                  alt="ZoyzaXR Logo" 
+                  src="/logo.jpg" 
+                  alt="Z-Live Logo" 
                   className="w-8 h-8 rounded-xl shadow-md object-cover border border-purple-100 shrink-0" 
                 />
                 <button
@@ -996,7 +996,7 @@ export default function BroadcastStudio() {
 
           {isSidebarOpen && (
             <div className="text-center text-[10px] text-gray-400 font-medium">
-              ZoyzaXR • Kingston University
+              Z-Live • Kingston University
             </div>
           )}
         </div>

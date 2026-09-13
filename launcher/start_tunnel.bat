@@ -2,7 +2,7 @@
 title Cloudflare Tunnel - MediaMTX HLS Remote Access
 cls
 echo ==============================================================
-echo   SOYZA STREAMING - CLOUDFLARE HLS TUNNEL STARTER
+echo   Z-LIVE STREAMING - CLOUDFLARE HLS TUNNEL STARTER
 echo ==============================================================
 echo.
 echo Starting secure HTTPS tunnel for MediaMTX HLS port 8888...

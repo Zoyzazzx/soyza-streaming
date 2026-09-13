@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ZoyzaXR — Hybrid Network Dashboard",
+  title: "Z-Live — Hybrid Network Dashboard",
   description:
     "Live streaming dashboard with automatic 5G/4G network failover, cloud recording, and real-time monitoring.",
 };

@@ -1,5 +1,5 @@
 """
-SOYZA Streaming Launcher
+Z-Live Streaming Launcher
 ========================
 GUI launcher for all 4 services with persistent path configuration.
 
@@ -19,6 +19,7 @@ import time
 import json
 from datetime import datetime
 import shutil
+import re
 
 # ── Config file lives next to the exe (or script) — survives moves ────────────
 if getattr(sys, "frozen", False):
@@ -71,6 +72,16 @@ SERVICE_DEFAULTS = [
         "hint":           "Folder that contains  package.json  (dashboard)",
         "default_subdir": "dashboard",
         "kill_port":      3000,   # kill any existing process on this port before starting
+    },
+    {
+        "key":            "cloudflared",
+        "name":           "Cloudflare Tunnel",
+        "subtitle":       "Exposes MediaMTX to the Internet",
+        "color":          "#F2902F",
+        "cmd":            ["cloudflared.exe", "tunnel", "--url", "http://localhost:8888"],
+        "admin":          False,
+        "hint":           "Folder containing cloudflared.exe (or empty if in PATH)",
+        "default_subdir": r"C:\Program Files (x86)\cloudflared",
     },
 ]
 
@@ -238,7 +249,7 @@ class SettingsWindow(tk.Toplevel):
         self.current_cfg = dict(current_cfg)
         self._entries: dict[str, tk.StringVar] = {}
 
-        self.title("SOYZA Launcher — Settings")
+        self.title("Z-Live Launcher — Settings")
         self.configure(bg=BG)
         self.resizable(True, True)
         self.grab_set()
@@ -441,6 +452,7 @@ class ServicePanel(tk.Frame):
         self._cwd     = cwd
         self.process  = None
         self._running = False
+        self._detected_url = None
 
         self._build_header()
         self._build_footer()
@@ -558,6 +570,15 @@ class ServicePanel(tk.Frame):
             command=self.clear_log,
         ).pack(side="right")
 
+        self.copy_url_btn = tk.Button(
+            footer, text="  Copy URL  ", font=FONT_BTN,
+            bg=SURFACE, fg=TEXT_DIM,
+            activebackground=BORDER, activeforeground=TEXT,
+            relief="flat", bd=0, padx=12, pady=6, cursor="hand2",
+            command=self.copy_url,
+        )
+        self.copy_url_btn.pack_forget()
+
     # ── Logging ──────────────────────────────────────────────────────────
 
     def log(self, line: str, tag: str = "info"):
@@ -573,6 +594,17 @@ class ServicePanel(tk.Frame):
         self.log_txt.config(state="normal")
         self.log_txt.delete("1.0", "end")
         self.log_txt.config(state="disabled")
+
+    def _show_copy_url_btn(self):
+        self.copy_url_btn.pack(side="right", padx=(0, 8))
+        self.copy_url_btn.config(bg=self.svc_def["color"], fg="white")
+
+    def copy_url(self):
+        if self._detected_url:
+            self.clipboard_clear()
+            self.clipboard_append(self._detected_url)
+            self.copy_url_btn.config(text="  Copied!  ", bg=SUCCESS)
+            self.after(2000, lambda: self.copy_url_btn.config(text="  Copy URL  ", bg=self.svc_def["color"]))
 
     # ── Status ───────────────────────────────────────────────────────────
 
@@ -638,6 +670,9 @@ class ServicePanel(tk.Frame):
         # Resolve cmd — if the exe is in the cwd, build the full path
         cmd = resolve_cmd(list(s["cmd"]), self._cwd)
 
+        self._detected_url = None
+        self.copy_url_btn.pack_forget()
+
         self.log(f"Starting {s['name']}...", "system")
         self.log(f"  dir : {self._cwd}", "system")
         self.log(f"  cmd : {' '.join(cmd)}", "system")
@@ -684,6 +719,12 @@ class ServicePanel(tk.Frame):
                     tag = "success"
                 else:
                     tag = "info"
+                
+                url_match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
+                if url_match:
+                    self._detected_url = url_match.group(0)
+                    self.after(0, self._show_copy_url_btn)
+
                 self.log(line, tag)
         except Exception:
             pass
@@ -929,11 +970,18 @@ class LauncherApp(tk.Tk):
         super().__init__()
         self.cfg = cfg
         self.title(
-            "SOYZA Streaming Launcher" + ("  [Administrator]" if is_admin() else "")
+            "Z-Live Streaming Launcher" + ("  [Administrator]" if is_admin() else "")
         )
         self.configure(bg=BG)
-        self.geometry("1300x820")
-        self.minsize(960, 640)
+        self.geometry("1300x1100")
+        self.minsize(960, 800)
+        
+        ico_path = os.path.join(_EXE_DIR, "logo.ico")
+        if os.path.exists(ico_path):
+            try:
+                self.iconbitmap(ico_path)
+            except Exception:
+                pass
 
         self._build_titlebar()
         self._build_panels()
@@ -946,7 +994,15 @@ class LauncherApp(tk.Tk):
         bar = tk.Frame(self, bg=PANEL, pady=14, padx=20)
         bar.pack(fill="x")
 
-        tk.Label(bar, text="SOYZA", font=("Segoe UI", 20, "bold"),
+        png_path = os.path.join(_EXE_DIR, "logo_icon.png")
+        if os.path.exists(png_path):
+            try:
+                self.logo_img = tk.PhotoImage(file=png_path)
+                tk.Label(bar, image=self.logo_img, bg=PANEL).pack(side="left", padx=(0, 10))
+            except Exception:
+                pass
+
+        tk.Label(bar, text="Z-Live", font=("Segoe UI", 20, "bold"),
                  fg=ACCENT, bg=PANEL).pack(side="left")
         tk.Label(bar, text=" Streaming Launcher", font=FONT_HEAD,
                  fg=TEXT, bg=PANEL).pack(side="left")
@@ -993,10 +1049,13 @@ class LauncherApp(tk.Tk):
     def _build_panels(self):
         container = tk.Frame(self, bg=BG)
         container.pack(fill="both", expand=True, padx=12, pady=12)
-        container.rowconfigure(0, weight=1)
-        container.rowconfigure(1, weight=1)
+        
         container.columnconfigure(0, weight=1)
         container.columnconfigure(1, weight=1)
+        
+        num_rows = (len(SERVICE_DEFAULTS) + 1) // 2
+        for i in range(num_rows):
+            container.rowconfigure(i, weight=1)
 
         self.panels: list[ServicePanel] = []
         for i, svc in enumerate(SERVICE_DEFAULTS):

@@ -215,13 +215,13 @@ export default function SettingsPage() {
           <div className="flex items-center gap-3">
             <Link href="/" className="shrink-0 flex items-center gap-2">
               <img 
-                src="/logo.png" 
-                alt="ZoyzaXR Logo" 
+                src="/logo.jpg" 
+                alt="Z-Live Logo" 
                 className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100" 
               />
             </Link>
             <div>
-              <span className="font-bold text-gray-900 text-lg tracking-tight block">ZoyzaXR</span>
+              <span className="font-bold text-gray-900 text-lg tracking-tight block">Z-Live</span>
               <span className="text-gray-500 text-xs">Settings & Access Control</span>
             </div>
           </div>
@@ -496,7 +496,7 @@ export default function SettingsPage() {
 
         {/* Footer */}
         <div className="text-center text-xs text-gray-400 pt-4">
-          ZoyzaXR Project — E299625 | Kingston University London
+          Z-Live Project — E299625 | Kingston University London
         </div>
       </main>
 
@@ -563,7 +563,7 @@ export default function SettingsPage() {
                   type="email"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder={newRole === "viewer" ? "viewer1@zoyzair.tv" : "streamer1@zoyzair.tv"}
+                  placeholder={newRole === "viewer" ? "viewer1@zlive.tv" : "streamer1@zlive.tv"}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                   required
                 />

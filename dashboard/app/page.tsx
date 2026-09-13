@@ -54,12 +54,12 @@ export default function HubPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
             <img 
-              src="/logo.png" 
-              alt="ZoyzaXR Logo" 
+              src="/logo.jpg" 
+              alt="Z-Live Logo" 
               className="w-10 h-10 rounded-xl shadow-md object-cover border border-purple-100" 
             />
             <div>
-              <span className="font-bold text-gray-900 text-lg tracking-tight block">ZoyzaXR</span>
+              <span className="font-bold text-gray-900 text-lg tracking-tight block">Z-Live</span>
               <span className="text-gray-500 text-xs">Home</span>
             </div>
           </div>
@@ -89,7 +89,7 @@ export default function HubPage() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-12 flex flex-col items-center justify-center">
         
         <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
-          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Welcome to ZoyzaXR</h1>
+          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Welcome to Z-Live</h1>
           <p className="text-gray-500 mt-3 text-lg max-w-2xl mx-auto">
             Select an action to continue. Your hybrid network streaming environment is ready.
           </p>
@@ -132,7 +132,7 @@ export default function HubPage() {
 
         {/* Footer */}
         <div className="mt-16 text-center text-xs text-gray-400 animate-in fade-in duration-1000 delay-700">
-          ZoyzaXR Project — E299625 | Kingston University London
+          Z-Live Project — E299625 | Kingston University London
         </div>
       </main>
     </div>

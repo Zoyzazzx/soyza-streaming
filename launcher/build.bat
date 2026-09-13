@@ -1,6 +1,6 @@
 @echo off
 echo ============================================
-echo   SOYZA Streaming Launcher - Build Script
+echo   Z-Live Streaming Launcher - Build Script
 echo ============================================
 echo.
 
@@ -27,7 +27,8 @@ echo [2/3] Building launcher.exe with PyInstaller...
 py -m PyInstaller ^
     --onefile ^
     --windowed ^
-    --name "SOYZA Launcher" ^
+    --icon "%~dp0logo.ico" ^
+    --name "Z-Live Launcher" ^
     --distpath "%~dp0dist" ^
     --workpath "%~dp0build" ^
     --specpath "%~dp0build" ^
@@ -43,10 +44,10 @@ echo       OK
 echo [3/3] Done!
 echo.
 echo ============================================
-echo   Output: %~dp0dist\SOYZA Launcher.exe
+echo   Output: %~dp0dist\Z-Live Launcher.exe
 echo ============================================
 echo.
-echo You can move "SOYZA Launcher.exe" anywhere inside
+echo You can move "Z-Live Launcher.exe" anywhere inside
 echo the soyza-streaming folder and it will work.
 echo.
 pause

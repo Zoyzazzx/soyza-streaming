@@ -936,47 +936,69 @@ export default function BroadcastStudio() {
 
             {/* Middle / Right: 3 Backend Infrastructure Component Health Indicators */}
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-gray-50 border border-gray-200 shadow-2xs">
-                {/* 1. MediaMTX Server */}
-                <div 
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white transition-colors cursor-help"
-                  title={`MediaMTX Streaming Server: ${systemHealth.services.mediamtx.message}`}
-                >
-                  <Server className={`w-3.5 h-3.5 ${systemHealth.services.mediamtx.online ? "text-indigo-600" : "text-red-500"}`} />
-                  <span className="text-[11px] font-bold text-gray-700 hidden xl:inline">MediaMTX</span>
-                  <span className={`w-2 h-2 rounded-full ${
-                    systemHealth.services.mediamtx.online ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]" : "bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.7)]"
-                  }`} />
-                </div>
+              {/* Unique Backend Infrastructure Node Graph */}
+              <div className="hidden xl:flex items-center p-1 bg-white border border-gray-200/80 rounded-full shadow-xs gap-0.5">
+               
+               {/* Node 1: MediaMTX */}
+               <div className="flex items-center cursor-help pr-3 pl-1 py-1 rounded-full hover:bg-gray-50 transition-colors" title={`MediaMTX: ${systemHealth.services.mediamtx.message}`}>
+                 <div className="relative flex items-center justify-center w-6 h-6 mr-2">
+                   {systemHealth.services.mediamtx.online ? (
+                     <>
+                       <div className="absolute inset-0 bg-purple-100 rounded-full" />
+                       <Server className="w-3 h-3 text-purple-700 relative z-10" />
+                     </>
+                   ) : (
+                     <>
+                       <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />
+                       <Server className="w-3 h-3 text-red-600 relative z-10" />
+                     </>
+                   )}
+                 </div>
+                 <span className={`text-[10px] font-bold ${systemHealth.services.mediamtx.online ? 'text-gray-700' : 'text-red-600'}`}>
+                   MediaMTX
+                 </span>
+               </div>
 
-                <div className="w-px h-3.5 bg-gray-200" />
+               {/* Node 2: Worker */}
+               <div className="flex items-center cursor-help pr-3 pl-1 py-1 rounded-full hover:bg-gray-50 transition-colors" title={`Upload Worker: ${systemHealth.services.worker.message}`}>
+                 <div className="relative flex items-center justify-center w-6 h-6 mr-2">
+                   {systemHealth.services.worker.online ? (
+                     <>
+                       <div className="absolute inset-0 bg-purple-100 rounded-full" />
+                       <UploadCloud className="w-3 h-3 text-purple-700 relative z-10" />
+                     </>
+                   ) : (
+                     <>
+                       <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />
+                       <UploadCloud className="w-3 h-3 text-red-600 relative z-10" />
+                     </>
+                   )}
+                 </div>
+                 <span className={`text-[10px] font-bold ${systemHealth.services.worker.online ? 'text-gray-700' : 'text-red-600'}`}>
+                   Upload Worker
+                 </span>
+               </div>
 
-                {/* 2. Upload Worker */}
-                <div 
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white transition-colors cursor-help"
-                  title={`Upload Worker (Port 4000): ${systemHealth.services.worker.message}`}
-                >
-                  <UploadCloud className={`w-3.5 h-3.5 ${systemHealth.services.worker.online ? "text-cyan-600" : "text-red-500"}`} />
-                  <span className="text-[11px] font-bold text-gray-700 hidden xl:inline">Upload Worker</span>
-                  <span className={`w-2 h-2 rounded-full ${
-                    systemHealth.services.worker.online ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]" : "bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.7)]"
-                  }`} />
-                </div>
-
-                <div className="w-px h-3.5 bg-gray-200" />
-
-                {/* 3. Connectivity Monitor */}
-                <div 
-                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white transition-colors cursor-help"
-                  title={`Connectivity & Failover Monitor: ${systemHealth.services.monitor.message}`}
-                >
-                  <Activity className={`w-3.5 h-3.5 ${systemHealth.services.monitor.online ? "text-purple-600" : "text-red-500"}`} />
-                  <span className="text-[11px] font-bold text-gray-700 hidden xl:inline">Monitor</span>
-                  <span className={`w-2 h-2 rounded-full ${
-                    systemHealth.services.monitor.online ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]" : "bg-red-500 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.7)]"
-                  }`} />
-                </div>
-              </div>
+               {/* Node 3: Monitor */}
+               <div className="flex items-center cursor-help pr-3 pl-1 py-1 rounded-full hover:bg-gray-50 transition-colors" title={`Monitor: ${systemHealth.services.monitor.message}`}>
+                 <div className="relative flex items-center justify-center w-6 h-6 mr-2">
+                   {systemHealth.services.monitor.online ? (
+                     <>
+                       <div className="absolute inset-0 bg-purple-100 rounded-full" />
+                       <Activity className="w-3 h-3 text-purple-700 relative z-10" />
+                     </>
+                   ) : (
+                     <>
+                       <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />
+                       <Activity className="w-3 h-3 text-red-600 relative z-10" />
+                     </>
+                   )}
+                 </div>
+                 <span className={`text-[10px] font-bold ${systemHealth.services.monitor.online ? 'text-gray-700' : 'text-red-600'}`}>
+                   Monitor
+                 </span>
+               </div>
+            </div>
 
               <div className="flex items-center gap-2 text-xs text-gray-500 mr-2">
                 <span>Status: <b className={isBroadcasting ? "text-red-600 font-bold" : "text-gray-700"}>{isBroadcasting ? "LIVE" : "STANDBY"}</b></span>

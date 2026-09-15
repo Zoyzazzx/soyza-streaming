@@ -223,7 +223,7 @@ export default function ViewerPage() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col font-sans selection:bg-purple-600 selection:text-white w-full">
+      <div className="flex-1 flex flex-col font-sans selection:bg-purple-600 selection:text-white w-full">
         {/* ── Top Header Navigation ── */}
         <header className="h-16 bg-white border-b border-gray-200 px-6 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 z-40 shadow-xs">
           <div className="flex items-center gap-4">
@@ -248,16 +248,16 @@ export default function ViewerPage() {
             {/* Stream Route Indicator */}
             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
               activeRoutingMode === "tunneled"
-                ? "bg-amber-50 text-amber-800 border-amber-200"
-                : "bg-blue-50 text-blue-700 border-blue-200"
+                ? "bg-purple-50 text-purple-800 border-purple-200"
+                : "bg-purple-50 text-purple-700 border-purple-200"
             }`}>
               {activeRoutingMode === "tunneled" ? (
                 <>
-                  <Globe className="w-3 h-3 text-amber-600" /> Tunneled Route
+                  <Globe className="w-3 h-3 text-purple-600" /> Tunneled Route
                 </>
               ) : (
                 <>
-                  <Laptop className="w-3 h-3 text-blue-600" /> Local Direct Route
+                  <Laptop className="w-3 h-3 text-purple-600" /> Local Direct Route
                 </>
               )}
             </span>
@@ -319,24 +319,24 @@ export default function ViewerPage() {
           <>
             {/* CASE A: User is on Netlify/Cloud, but broadcaster is running in Local Direct mode */}
             {isNetlifyHost && activeRoutingMode === "local" && (
-              <div className="bg-blue-50/90 border border-blue-200/80 rounded-2xl p-4 text-blue-900 shadow-2xs flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="bg-purple-50/90 border border-purple-200/80 rounded-2xl p-4 text-purple-900 shadow-2xs flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5">
                     <Info className="w-4 h-4" />
                   </div>
                   <div className="text-xs space-y-1">
-                    <p className="font-bold text-blue-950 text-sm">
-                      Stream is currently running in <span className="underline decoration-blue-400">Local Direct Route</span>
+                    <p className="font-bold text-purple-950 text-sm">
+                      Stream is currently running in <span className="underline decoration-purple-400">Local Direct Route</span>
                     </p>
-                    <p className="text-blue-800 leading-relaxed">
-                      The live feed is hosted on the broadcaster&apos;s local PC (<code className="bg-white/80 px-1 py-0.5 rounded font-mono text-[11px] text-blue-700">http://localhost:3000/viewer</code>). 
+                    <p className="text-purple-800 leading-relaxed">
+                      The live feed is hosted on the broadcaster&apos;s local PC (<code className="bg-white/80 px-1 py-0.5 rounded font-mono text-[11px] text-purple-700">http://localhost:3000/viewer</code>). 
                       To watch remotely from Netlify, the broadcaster should switch to <b>Cloudflare Tunnel Mode</b> in <b>Settings</b>.
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsBannerDismissed(true)}
-                  className="text-blue-500 hover:text-blue-800 p-1.5 rounded-lg hover:bg-blue-100 transition-colors shrink-0"
+                  className="text-purple-500 hover:text-purple-800 p-1.5 rounded-lg hover:bg-purple-100 transition-colors shrink-0"
                   title="Dismiss message"
                 >
                   <X className="w-4 h-4" />

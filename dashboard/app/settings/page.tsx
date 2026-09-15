@@ -200,25 +200,25 @@ export default function SettingsPage() {
   if (loadingAuth) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
       </div>
     );
   }
 
   return (
     <DashboardLayout>
-      <div className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
+      <div className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
         
         {/* Status Notification Banner */}
         {statusMsg && (
-          <div className={`p-4 rounded-2xl border flex items-center justify-between shadow-sm animate-in fade-in duration-300 ${
+          <div className={`p-4 rounded-2xl border flex items-center justify-between ${
             statusMsg.type === "success" 
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800" 
+              ? "bg-purple-50 border-purple-200 text-purple-800" 
               : "bg-red-50 border-red-200 text-red-800"
           }`}>
             <div className="flex items-center gap-3">
               {statusMsg.type === "success" ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                <CheckCircle2 className="w-5 h-5 text-purple-600 flex-shrink-0" />
               ) : (
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
               )}
@@ -234,10 +234,10 @@ export default function SettingsPage() {
         )}
 
         {/* User Account Management Section */}
-        <div className="bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-inner">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
                 <Users className="w-5 h-5" />
               </div>
               <div>
@@ -258,7 +258,7 @@ export default function SettingsPage() {
               </button>
               <button
                 onClick={() => setIsCreateOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-all shadow-sm hover:shadow"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition-all"
               >
                 <UserPlus className="w-4 h-4" />
                 Create New Login
@@ -270,7 +270,7 @@ export default function SettingsPage() {
           <div className="overflow-x-auto">
             {loadingUsers ? (
               <div className="py-12 flex justify-center items-center">
-                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-indigo-600"></div>
+                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-purple-600"></div>
               </div>
             ) : users.length === 0 ? (
               <div className="py-12 text-center text-gray-500 text-sm">
@@ -294,13 +294,13 @@ export default function SettingsPage() {
                       </td>
                       <td className="py-4 px-6">
                         {user.role === "streamer" ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            <Radio className="w-3 h-3 text-indigo-600" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                            <Radio className="w-3 h-3 text-purple-600" />
                             Streamer (Full Access)
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">
-                            <Tv className="w-3 h-3 text-violet-600" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                            <Tv className="w-3 h-3 text-purple-600" />
                             Viewer Only
                           </span>
                         )}
@@ -317,7 +317,7 @@ export default function SettingsPage() {
                       <td className="py-4 px-6 text-right">
                         <button
                           onClick={() => handleDeleteUser(user.id, user.email)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                           title="Delete User"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -332,10 +332,10 @@ export default function SettingsPage() {
         </div>
 
         {/* ── Stream Routing & Remote Access Configuration (Local vs Tunneled) ── */}
-        <div className="bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden animate-in fade-in duration-300">
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden animate-in fade-in duration-300">
           <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-inner">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
                 <Server className="w-5 h-5" />
               </div>
               <div>
@@ -347,12 +347,12 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
+              <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 ${
                 routingMode === "tunneled"
-                  ? "bg-amber-50 border-amber-200 text-amber-800"
-                  : "bg-emerald-50 border-emerald-200 text-emerald-800"
+                  ? "bg-purple-50 border-purple-200 text-purple-800"
+                  : "bg-purple-50 border-purple-200 text-purple-800"
               }`}>
-                <span className={`w-2 h-2 rounded-full ${routingMode === "tunneled" ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
+                <span className={`w-2 h-2 rounded-full ${routingMode === "tunneled" ? "bg-purple-500 animate-pulse" : "bg-purple-500"}`} />
                 {routingMode === "tunneled" ? "Cloudflare Tunneled Route" : "Local Direct Route"}
               </span>
             </div>
@@ -365,15 +365,15 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setRoutingMode("local")}
-                className={`p-5 rounded-2xl border text-left transition-all ${
+                className={`p-5 rounded-xl border text-left transition-all ${
                   routingMode === "local"
-                    ? "border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20 shadow-xs"
+                    ? "border-purple-500 bg-purple-50/50 ring-2 ring-purple-500/20"
                     : "border-gray-200 bg-gray-50/50 hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-center gap-2.5 mb-2">
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                    routingMode === "local" ? "bg-emerald-100 text-emerald-700" : "bg-gray-200 text-gray-600"
+                    routingMode === "local" ? "bg-purple-100 text-purple-700" : "bg-gray-200 text-gray-600"
                   }`}>
                     <Laptop className="w-4 h-4" />
                   </div>
@@ -391,9 +391,9 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setRoutingMode("tunneled")}
-                className={`p-5 rounded-2xl border text-left transition-all ${
+                className={`p-5 rounded-xl border text-left transition-all ${
                   routingMode === "tunneled"
-                    ? "border-purple-500 bg-purple-50/50 ring-2 ring-purple-500/20 shadow-xs"
+                    ? "border-purple-500 bg-purple-50/50 ring-2 ring-purple-500/20"
                     : "border-gray-200 bg-gray-50/50 hover:border-gray-300"
                 }`}
               >
@@ -415,7 +415,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Tunnel URL input (shown if tunneled or to configure ahead) */}
-            <div className={`p-5 rounded-2xl border transition-all ${
+            <div className={`p-5 rounded-xl border transition-all ${
               routingMode === "tunneled" ? "bg-purple-50/30 border-purple-200" : "bg-gray-50 border-gray-200"
             }`}>
               <label className="text-xs font-bold uppercase tracking-wider text-gray-700 block mb-1">
@@ -430,13 +430,13 @@ export default function SettingsPage() {
                   value={tunnelUrl}
                   onChange={(e) => setTunnelUrl(e.target.value)}
                   placeholder="https://example-subdomain.trycloudflare.com"
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-purple-500 shadow-2xs font-mono"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-purple-500 font-mono"
                 />
                 <button
                   type="button"
                   disabled={routingSaving}
                   onClick={handleSaveRouting}
-                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition-all shadow-sm flex items-center justify-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs transition-all flex items-center justify-center gap-2"
                 >
                   <Save className="w-4 h-4" />
                   <span>{routingSaving ? "Saving..." : "Save Route Setting"}</span>
@@ -446,21 +446,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* System Settings & Architecture Info */}
-        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-600 flex items-center justify-center flex-shrink-0">
-              <Shield className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="font-bold text-gray-900 text-base">Role-Based Access Policy</h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                • <b>Streamers</b> have full clearance for Broadcast Studio, failover controls, live viewer, and user management.<br />
-                • <b>Viewers</b> are restricted strictly to live playback and cannot modify streaming or hardware failover settings.
-              </p>
-            </div>
-          </div>
-        </div>
 
         {/* Footer */}
         <div className="text-center text-xs text-gray-400 pt-4">
@@ -471,10 +456,10 @@ export default function SettingsPage() {
       {/* ── Create User Modal ── */}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-gray-100 rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
+          <div className="bg-white border border-gray-100 rounded-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
                   <UserPlus className="w-4 h-4" />
                 </div>
                 <h3 className="font-bold text-gray-900 text-base">Create New Login</h3>
@@ -497,13 +482,13 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => setNewRole("viewer")}
-                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center transition-all ${
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
                       newRole === "viewer"
-                        ? "border-violet-500 bg-violet-50/50 text-violet-900 ring-2 ring-violet-500/20"
+                        ? "border-purple-500 bg-purple-50/50 text-purple-900 ring-2 ring-purple-500/20"
                         : "border-gray-200 hover:border-gray-300 text-gray-600"
                     }`}
                   >
-                    <Tv className="w-5 h-5 mb-1 text-violet-600" />
+                    <Tv className="w-5 h-5 mb-1 text-purple-600" />
                     <span className="text-xs font-bold">Viewer</span>
                     <span className="text-[10px] text-gray-400">Stream Watch Only</span>
                   </button>
@@ -511,13 +496,13 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={() => setNewRole("streamer")}
-                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center transition-all ${
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
                       newRole === "streamer"
-                        ? "border-indigo-500 bg-indigo-50/50 text-indigo-900 ring-2 ring-indigo-500/20"
+                        ? "border-purple-500 bg-purple-50/50 text-purple-900 ring-2 ring-purple-500/20"
                         : "border-gray-200 hover:border-gray-300 text-gray-600"
                     }`}
                   >
-                    <Radio className="w-5 h-5 mb-1 text-indigo-600" />
+                    <Radio className="w-5 h-5 mb-1 text-purple-600" />
                     <span className="text-xs font-bold">Streamer</span>
                     <span className="text-[10px] text-gray-400">Full System Access</span>
                   </button>
@@ -532,7 +517,7 @@ export default function SettingsPage() {
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   placeholder={newRole === "viewer" ? "viewer1@zlive.tv" : "streamer1@zlive.tv"}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
                   required
                 />
               </div>
@@ -546,7 +531,7 @@ export default function SettingsPage() {
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Minimum 6 characters"
                   minLength={6}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
                   required
                 />
               </div>
@@ -562,7 +547,7 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={createLoading}
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition-all disabled:opacity-50 flex items-center gap-2"
                 >
                   {createLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   {createLoading ? "Creating..." : "Save Account"}

@@ -137,10 +137,10 @@ export default function HLSPlayer({ url }: HLSPlayerProps) {
                   data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
                   data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT
                 ) {
-                  // If the server went down completely, a full reconnect is needed
+                  // The stream is active but HLS segments haven't been generated yet (race condition).
+                  // Keep the loading state and retry quickly.
                   hls.destroy();
-                  setStatus("offline");
-                  setTimeout(() => setRetryCount((c) => c + 1), 3000);
+                  setTimeout(() => setRetryCount((c) => c + 1), 1000);
                 } else {
                   // For minor network blips, try to resume loading segments
                   hls.startLoad();
@@ -176,8 +176,8 @@ export default function HLSPlayer({ url }: HLSPlayerProps) {
           }
         };
         const onError = () => {
-          setStatus("offline");
-          setTimeout(() => setRetryCount((c) => c + 1), 3000);
+          // Native HLS error: usually means manifest is not ready. Retry silently.
+          setTimeout(() => setRetryCount((c) => c + 1), 1000);
         };
 
         video.addEventListener("loadedmetadata", onLoadedMetadata);

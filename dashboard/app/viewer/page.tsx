@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import HLSPlayer from "@/components/HLSPlayer";
 import { createClient } from "@/lib/supabase/client";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 import {
   LogOut,
   Home,
@@ -181,10 +182,6 @@ export default function ViewerPage() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
 
   const handleAuthenticate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -225,25 +222,12 @@ export default function ViewerPage() {
   const isLive = streamStatus.streaming;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans selection:bg-purple-600 selection:text-white w-full">
-      {/* ── Top Header Navigation (Matching Studio Header Exactly) ── */}
-      <header className="h-16 bg-white border-b border-gray-200 px-6 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 z-50 shadow-xs">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="shrink-0 flex items-center gap-3 group">
-            <img 
-              src="/logo.jpg" 
-              alt="Z-Live Logo" 
-              className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100 group-hover:scale-105 transition-transform" 
-            />
-            <div className="hidden sm:block">
-              <span className="font-extrabold text-gray-900 text-base tracking-tight block">Z-Live</span>
-              <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Live Viewer</span>
-            </div>
-          </Link>
-
-          <div className="w-px h-6 bg-gray-200 hidden sm:block"></div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
+    <DashboardLayout>
+      <div className="flex flex-col font-sans selection:bg-purple-600 selection:text-white w-full">
+        {/* ── Top Header Navigation ── */}
+        <header className="h-16 bg-white border-b border-gray-200 px-6 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 z-40 shadow-xs">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-base sm:text-lg font-extrabold text-gray-900 tracking-tight">
               {isLive ? streamTitle : "No Active Stream"}
             </h1>
@@ -324,15 +308,6 @@ export default function ViewerPage() {
             <Video className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Recordings</span>
           </Link>
-
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-            title="Logout"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">Logout</span>
-          </button>
         </div>
       </header>
 
@@ -599,6 +574,7 @@ export default function ViewerPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

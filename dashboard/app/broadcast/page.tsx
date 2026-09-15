@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 import {
   LogOut,
   Home,
@@ -420,10 +421,6 @@ export default function BroadcastStudio() {
     setPrivacyWarningModal({ target: "private", isOpen: false });
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
 
   // We use a ref to hold the latest startBroadcast function so the event listener doesn't use stale closures
   const startBroadcastRef = useRef<((isRetry?: boolean) => Promise<void>) | null>(null);
@@ -690,108 +687,27 @@ export default function BroadcastStudio() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-row font-sans selection:bg-purple-600 selection:text-white w-full overflow-x-hidden">
-      
-      {/* ═══════════════════════════════════════════════════════════════════
-          LEFT SIDEBAR (Royal Purple Theme)
-          ═══════════════════════════════════════════════════════════════════ */}
-      <aside className={`${
-        isSidebarOpen ? "w-72" : "w-20"
-      } bg-white border-r border-gray-200 shrink-0 transition-all duration-300 flex flex-col justify-between z-40 sticky top-0 h-screen shadow-xs`}>
+    <DashboardLayout>
+      <div className="flex flex-row font-sans selection:bg-purple-600 selection:text-white w-full overflow-x-hidden">
         
-        {/* Top Branding Section */}
-        <div>
-          <div className={`h-16 flex items-center border-b border-gray-100 transition-all ${
-            isSidebarOpen ? "px-4 justify-between" : "px-2 justify-center flex-col gap-1 py-1"
-          }`}>
-            {isSidebarOpen ? (
-              <>
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <img 
-                    src="/logo.jpg" 
-                    alt="Z-Live Logo" 
-                    className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100 shrink-0" 
-                  />
-                  <div className="truncate animate-in fade-in duration-200">
-                    <span className="font-extrabold text-gray-900 text-base tracking-tight block">Z-Live</span>
-                    <span className="text-[10px] text-purple-600 font-bold uppercase tracking-wider block">Broadcast Studio</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setIsSidebarOpen(false)}
-                  className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors shrink-0"
-                  title="Collapse Sidebar"
-                >
-                  <PanelLeftClose className="w-4 h-4" />
-                </button>
-              </>
-            ) : (
-              <div className="flex items-center justify-center gap-1.5">
-                <img 
-                  src="/logo.jpg" 
-                  alt="Z-Live Logo" 
-                  className="w-8 h-8 rounded-xl shadow-md object-cover border border-purple-100 shrink-0" 
-                />
-                <button
-                  onClick={() => setIsSidebarOpen(true)}
-                  className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
-                  title="Expand Sidebar"
-                >
-                  <PanelLeft className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Navigation Links */}
-          <div className="p-3 space-y-1">
-            <Link
-              href="/"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors ${
-                !isSidebarOpen ? "justify-center px-0" : ""
-              }`}
-              title="Home"
+        {/* ═══════════════════════════════════════════════════════════════════
+            STREAM CONTROLS PANEL
+            ═══════════════════════════════════════════════════════════════════ */}
+        {isWizardComplete && (
+          <aside className={`${
+            isSidebarOpen ? "w-72" : "w-12"
+          } bg-white border-r border-gray-200 shrink-0 transition-all duration-300 flex flex-col z-30 sticky top-0 h-screen shadow-xs relative`}>
+            
+            {/* Toggle Button for Stream Controls */}
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="absolute -right-3 top-6 bg-white border border-gray-200 rounded-full p-1 shadow-sm text-gray-400 hover:text-purple-600 z-40 transition-transform"
+              title={isSidebarOpen ? "Collapse Controls" : "Expand Controls"}
             >
-              <Home className="w-4 h-4 shrink-0" />
-              {isSidebarOpen && <span>Home</span>}
-            </Link>
+              {isSidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
 
-            <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-bold text-xs bg-purple-50 text-purple-700 border border-purple-100 ${
-              !isSidebarOpen ? "justify-center px-0" : ""
-            }`} title="Broadcast Stage">
-              <Radio className="w-4 h-4 shrink-0 text-purple-600" />
-              {isSidebarOpen && <span>Broadcast Stage</span>}
-            </div>
-
-            <a
-              href="/viewer"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors ${
-                !isSidebarOpen ? "justify-center px-0" : ""
-              }`}
-              title="Live Viewer (Opens in new tab)"
-            >
-              <Tv className="w-4 h-4 shrink-0" />
-              {isSidebarOpen && <span>Live Viewer ↗</span>}
-            </a>
-
-            <a
-              href="/recordings"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-semibold text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors ${
-                !isSidebarOpen ? "justify-center px-0" : ""
-              }`}
-              title="Recordings Library (Opens in new tab)"
-            >
-              <Video className="w-4 h-4 shrink-0" />
-              {isSidebarOpen && <span>Recordings Library ↗</span>}
-            </a>
-          </div>
-
-          {/* Sidebar Stream Controls & Parameters */}
+            {/* Sidebar Stream Controls & Parameters */}
           {isSidebarOpen && isWizardComplete && (
             <div className="px-4 py-3 space-y-4 border-t border-gray-100 animate-in fade-in duration-300">
               <div className="flex items-center justify-between">
@@ -961,46 +877,8 @@ export default function BroadcastStudio() {
               </button>
             </div>
           )}
-        </div>
-
-        {/* Bottom User & Logout Section */}
-        <div className="p-3 border-t border-gray-100 space-y-2">
-          {isSidebarOpen ? (
-            <div className="flex items-center justify-between p-2 rounded-2xl bg-gray-50 border border-gray-100">
-              <div className="flex items-center gap-2.5 overflow-hidden">
-                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs shrink-0">
-                  <User className="w-4 h-4" />
-                </div>
-                <div className="truncate">
-                  <span className="font-bold text-gray-900 text-xs block truncate">{userEmail}</span>
-                  <span className="text-[10px] text-purple-600 block uppercase font-bold">{userRole}</span>
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors shrink-0"
-                title="Sign Out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          )}
-
-          {isSidebarOpen && (
-            <div className="text-center text-[10px] text-gray-400 font-medium">
-              Z-Live • Kingston University
-            </div>
-          )}
-        </div>
-      </aside>
+          </aside>
+        )}
 
       {/* ═══════════════════════════════════════════════════════════════════
           RIGHT MAIN CONTENT AREA
@@ -1991,6 +1869,7 @@ export default function BroadcastStudio() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

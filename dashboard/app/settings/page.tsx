@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 import {
   LogOut,
   Home,
@@ -144,10 +145,7 @@ export default function SettingsPage() {
     }
   }, [loadingAuth]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
+
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,38 +206,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-      {/* ── Navigation ── */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="shrink-0 flex items-center gap-2">
-              <img 
-                src="/logo.jpg" 
-                alt="Z-Live Logo" 
-                className="w-10 h-10 rounded-2xl shadow-md object-cover border border-purple-100" 
-              />
-            </Link>
-            <div>
-              <span className="font-bold text-gray-900 text-lg tracking-tight block">Z-Live</span>
-              <span className="text-gray-500 text-xs">Settings & Access Control</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {/* ── Main content ── */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
+    <DashboardLayout>
+      <div className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
         
         {/* Status Notification Banner */}
         {statusMsg && (
@@ -498,7 +466,7 @@ export default function SettingsPage() {
         <div className="text-center text-xs text-gray-400 pt-4">
           Z-Live Project — E299625 | Kingston University London
         </div>
-      </main>
+      </div>
 
       {/* ── Create User Modal ── */}
       {isCreateOpen && (
@@ -604,6 +572,6 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
-    </div>
+    </DashboardLayout>
   );
 }

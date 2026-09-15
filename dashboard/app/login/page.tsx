@@ -13,12 +13,14 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [showSignupMessage, setShowSignupMessage] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
   const handleLogin = async () => {
     setLoading(true);
     setError(null);
+    setShowSignupMessage(false);
     
     const cleanEmail = email.trim();
     
@@ -39,7 +41,6 @@ export default function LoginPage() {
         throw new Error(result.error || "Login failed. Please check your credentials.");
       }
 
-      // Trigger vanish animation
       setIsSuccess(true);
       setTimeout(() => {
         window.location.href = result.redirectUrl || "/";
@@ -51,114 +52,128 @@ export default function LoginPage() {
   };
 
   return (
-    <InteractiveNeuralVortex colorTheme={activeTab === "streamer" ? "red" : "blue"}>
-      <div className={`w-full max-w-md bg-white/70 border border-white/40 p-8 rounded-3xl shadow-2xl backdrop-blur-xl space-y-6 transition-all duration-700 ease-in-out ${isSuccess ? 'opacity-0 scale-90 translate-y-4' : 'opacity-100 scale-100 animate-in fade-in zoom-in duration-500'}`}>
-        <div className="flex flex-col items-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border border-white/50 bg-white p-1">
-            <img 
-              src="/logo.jpg" 
-              alt="Z-Live Logo" 
-              className="w-full h-full object-contain rounded-xl"
-            />
-          </div>
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Z-Live</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {activeTab === "streamer" ? "Streamer Studio Access" : "Viewer Portal Access"}
-            </p>
-          </div>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="grid grid-cols-2 p-1.5 bg-gray-200/60 rounded-2xl backdrop-blur-sm border border-white/50">
-          <button
-            type="button"
-            onClick={() => { setActiveTab("streamer"); setError(null); }}
-            className={`flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-xs tracking-wide transition-all duration-300 ${
-              activeTab === "streamer"
-                ? "bg-white text-purple-700 shadow-md font-bold"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <Radio className="w-3.5 h-3.5" />
-            Streamer Login
-          </button>
-          <button
-            type="button"
-            onClick={() => { setActiveTab("viewer"); setError(null); }}
-            className={`flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-xs tracking-wide transition-all duration-300 ${
-              activeTab === "viewer"
-                ? "bg-white text-blue-600 shadow-md font-bold"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <Tv className="w-3.5 h-3.5" />
-            Viewer Login
-          </button>
-        </div>
-
-        {error && (
-          <div className="p-3.5 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm font-medium">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-gray-600 ml-1">
-              {activeTab === "streamer" ? "Streamer Email" : "Viewer Email"}
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={`w-full pl-10 pr-4 py-3 rounded-xl bg-white/60 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none transition-all shadow-sm text-sm ${
-                  activeTab === "streamer"
-                    ? "focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-                    : "focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                }`}
-                placeholder={activeTab === "streamer" ? "admin@zlive.tv" : "viewer@zlive.tv"}
-                required
-              />
+    <div className="flex min-h-screen w-full bg-[#111111] text-white font-sans selection:bg-blue-500/30">
+      {/* Left Panel */}
+      <div className="hidden lg:flex w-1/2 relative overflow-hidden bg-[#0a0a0a]">
+        <InteractiveNeuralVortex colorTheme={activeTab === "streamer" ? "red" : "blue"}>
+          <div className="absolute inset-0 flex flex-col justify-center items-center z-10">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-white rounded-lg p-1.5 shadow-xl">
+                <img 
+                  src="/logo.jpg" 
+                  alt="Z-Live Logo" 
+                  className="w-full h-full object-contain rounded-md"
+                />
+              </div>
+              <span className="text-6xl font-bold tracking-tight text-white drop-shadow-lg">Z-Live</span>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-gray-600 ml-1">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={`w-full pl-10 pr-4 py-3 rounded-xl bg-white/60 border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none transition-all shadow-sm text-sm ${
-                  activeTab === "streamer"
-                    ? "focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
-                    : "focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                }`}
-                placeholder="••••••••"
-                required
-              />
-            </div>
+        </InteractiveNeuralVortex>
+      </div>
+
+      {/* Right Panel */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center bg-[#18181b] relative z-10">
+        <div className="w-full max-w-[360px] px-6">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl font-semibold text-white mb-2">Sign in</h2>
+            <p className="text-sm text-gray-400">Welcome back! Please sign in to continue.</p>
           </div>
           
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={loading || isSuccess}
-              className={`w-full py-3.5 rounded-xl text-white font-semibold text-sm transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 ${
-                activeTab === "streamer"
-                  ? "bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 shadow-red-500/20"
-                  : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/20"
+          {/* Tab Switcher - Simple and less curved */}
+          <div className="flex gap-6 mb-8 border-b border-gray-800 pb-[1px]">
+            <button 
+              type="button" 
+              onClick={() => { setActiveTab('streamer'); setError(null); }} 
+              className={`text-sm font-medium pb-2 border-b-2 transition-colors ${
+                activeTab === 'streamer' 
+                  ? 'border-blue-500 text-white' 
+                  : 'border-transparent text-gray-500 hover:text-gray-300'
               }`}
             >
-              <LogIn className={`w-4 h-4 ${isSuccess ? 'animate-bounce' : ''}`} />
-              {isSuccess ? 'Authenticating...' : `Sign in as ${activeTab === 'streamer' ? 'Streamer' : 'Viewer'}`}
+              Streamer
+            </button>
+            <button 
+              type="button" 
+              onClick={() => { setActiveTab('viewer'); setError(null); }} 
+              className={`text-sm font-medium pb-2 border-b-2 transition-colors ${
+                activeTab === 'viewer' 
+                  ? 'border-blue-500 text-white' 
+                  : 'border-transparent text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              Viewer
             </button>
           </div>
-        </form>
+
+          {error && (
+            <div className="mb-5 p-3 rounded-md text-sm bg-red-950/40 text-red-400 border border-red-900/50">
+              {error}
+            </div>
+          )}
+          
+          {showSignupMessage && (
+            <div className="mb-5 p-3 rounded-md text-sm bg-blue-950/40 text-blue-400 border border-blue-900/50">
+              Contact admin for account creation.
+            </div>
+          )}
+
+          <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-medium text-gray-300">Email address</label>
+              <input 
+                type="email" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={activeTab === "streamer" ? "admin@zlive.tv" : "viewer@zlive.tv"}
+                className="w-full px-3 py-2.5 bg-[#27272a] border border-[#3f3f46] rounded-md text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors text-sm"
+                required 
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[13px] font-medium text-gray-300">Password</label>
+              <input 
+                type="password" 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-3 py-2.5 bg-[#27272a] border border-[#3f3f46] rounded-md text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors text-sm"
+                required 
+              />
+            </div>
+
+            <div className="pt-2">
+              <button 
+                type="submit"
+                disabled={loading || isSuccess}
+                className="w-full py-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-md text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center"
+              >
+                {isSuccess ? 'Authenticating...' : loading ? 'Signing in...' : 'Continue'}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-400">
+              Don't have an account?{' '}
+              <button 
+                type="button" 
+                onClick={() => setShowSignupMessage(true)} 
+                className="text-white font-medium hover:underline focus:outline-none"
+              >
+                Sign up
+              </button>
+            </p>
+          </div>
+          
+          <div className="mt-12 text-center text-xs text-gray-600 flex justify-center space-x-3">
+            <span>© Z-Live</span>
+            <span>·</span>
+            <span className="hover:text-gray-400 cursor-pointer">Privacy</span>
+            <span>·</span>
+            <span className="hover:text-gray-400 cursor-pointer">Terms</span>
+          </div>
+        </div>
       </div>
-    </InteractiveNeuralVortex>
+    </div>
   );
 }

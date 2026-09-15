@@ -14,7 +14,7 @@ echo.
 echo ==============================================================
 echo.
 
-set "CF_PATH=C:\Program Files (x86)\cloudflared\cloudflared.exe"
+set "CF_PATH=%~dp0..\cloudflared.exe"
 
 if exist "%CF_PATH%" (
     "%CF_PATH%" tunnel --url http://localhost:8888

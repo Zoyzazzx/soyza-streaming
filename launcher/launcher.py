@@ -81,7 +81,7 @@ SERVICE_DEFAULTS = [
         "cmd":            ["cloudflared.exe", "tunnel", "--url", "http://localhost:8888"],
         "admin":          False,
         "hint":           "Folder containing cloudflared.exe (or empty if in PATH)",
-        "default_subdir": r"C:\Program Files (x86)\cloudflared",
+        "default_subdir": "..",
     },
 ]
 
